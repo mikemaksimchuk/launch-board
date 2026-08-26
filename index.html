@@ -119,12 +119,28 @@ dialog::backdrop{background:rgba(9,29,32,.42)}
 .full{grid-column:1/-1}
 .dlg input,.dlg select,.dlg textarea{width:100%;margin-top:3px}
 .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:15px;padding-top:13px;border-top:1px solid var(--lightTeal)}
-.lnkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:8px;margin-bottom:22px}
-a.lnk{display:block;padding:10px 12px;background:var(--paleBlue);border:1px solid var(--lightTeal);
- border-left:4px solid var(--orange);border-radius:5px;text-decoration:none;color:var(--orange);
+.lnkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:8px;margin:0 0 16px;padding-left:6px}
+a.lnk{display:block;padding:10px 12px;background:var(--tint,var(--paleBlue));border:1px solid var(--lightTeal);
+ border-left:4px solid var(--accent,var(--orange));border-radius:5px;text-decoration:none;color:var(--ink,var(--a11yOrange));
  font-size:12.5px;font-weight:600;transition:.12s}
-a.lnk:hover{background:var(--white);border-color:var(--midTeal);transform:translateX(2px)}
-h3.lg{font-size:13px;font-weight:700;color:var(--teal);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.05em}
+a.lnk:hover{background:var(--white);border-color:var(--accent,var(--midTeal));transform:translateX(2px)}
+h3.lg{font-size:13px;font-weight:700;color:var(--ink,var(--teal));margin:0 0 8px;text-transform:uppercase;
+ letter-spacing:.05em;display:flex;align-items:center;gap:9px;padding:10px 13px;
+ background:var(--tint,var(--white));border:1px solid var(--lightTeal);
+ border-left:5px solid var(--accent,var(--teal));border-radius:6px;cursor:pointer;transition:.12s}
+h3.lg:hover{border-color:var(--accent,var(--midTeal));transform:translateX(2px)}
+h3.lg .cv{flex:none;width:10px;font-size:11px;opacity:.85}
+h3.lg .lgname{flex:1}
+h3.lg .lgn{flex:none;font-size:11px;font-weight:700;letter-spacing:0;padding:2px 8px;
+ border-radius:20px;background:var(--ink,var(--teal));color:var(--white)}
+/* Michigan Virtual four-color cycle — dark teal, light teal, green, orange.
+   --accent = pure brand color (bars, rules, decorative only)
+   --ink    = AA-contrast text/pill tone in the same family
+   --tint   = pale wash of the same family                                     */
+.mv1{--accent:#115e6e;--ink:#0d4a57;--tint:#eef6f7}
+.mv2{--accent:#2f8d98;--ink:#1c666f;--tint:#eef8f9}
+.mv3{--accent:#b5cd34;--ink:#5b6b12;--tint:#f8faea}
+.mv4{--accent:#f7941e;--ink:#a84c2a;--tint:#fff4e7}
 footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;display:flex;
  justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--lightGray);font-style:italic}
 .nudge{background:var(--cream);border:1px solid #f0d5b3;color:#8a4a00;padding:8px 12px;
@@ -609,13 +625,16 @@ $("pGo").onclick=()=>{try{const d=JSON.parse($("pText").value);
  if(stageImport(d))$("dPaste").close()}catch(e){toast("That isn't valid JSON")}};
 $("iCancel").onclick=()=>$("dImp").close();
 $("iReplace").onclick=async()=>{TASKS=INCOMING.tasks;META=INCOMING.meta||META;if(INCOMING.links)LINKGROUPS=INCOMING.links;await save();
- $("dImp").close();LINKGROUPS.forEach(g=>LCOLL.add(g.name));renderLinks();render();toast("Replaced")};
+ $("dImp").close();LOPEN.clear();renderLinks();render();toast("Replaced")};
 $("iMerge").onclick=async()=>{const have=new Set(TASKS.map(t=>t.id));
  let n=0;INCOMING.tasks.forEach(t=>{if(!have.has(t.id)){TASKS.push(t);n++}});
  await save();$("dImp").close();render();toast(n+" new items merged")};
 
 // links
-let LPOPEN=false, LCOLL=new Set();
+const MVC=["mv1","mv2","mv3","mv4"];   // dark teal · light teal · green · orange
+// LOPEN holds the groups you have opened. Anything not in it is collapsed — so a group
+// that shows up later (sync, import, new backup) arrives closed like everything else.
+let LPOPEN=true, LOPEN=new Set();
 function linkCount(){return LINKGROUPS.reduce((n,g)=>n+g.items.length,0)}
 function renderLinks(){
  const L=$("links");L.textContent="";
@@ -624,15 +643,22 @@ function renderLinks(){
  $("linksSub").style.display=LPOPEN?"block":"none";
  if(!LPOPEN)return;
  if(!LINKGROUPS.length){L.appendChild(el("div","empty","Your Launch Pad links arrive with your backup. Hit Import below."));return}
- LINKGROUPS.forEach(g=>{
-  const open=!LCOLL.has(g.name);
-  const h=el("h3","lg",(open?"▾ ":"▸ ")+g.name+" ("+g.items.length+")");
-  h.style.cursor="pointer";h.setAttribute("aria-expanded",String(open));
-  h.onclick=()=>{LCOLL.has(g.name)?LCOLL.delete(g.name):LCOLL.add(g.name);renderLinks()};
+ LINKGROUPS.forEach((g,gi)=>{
+  const open=LOPEN.has(g.name);
+  const h=el("h3","lg "+MVC[gi%4]);
+  h.appendChild(el("span","cv",open?"▾":"▸"));
+  h.appendChild(el("span","lgname",g.name));
+  h.appendChild(el("span","lgn",g.items.length));
+  h.setAttribute("role","button");h.setAttribute("tabindex","0");
+  h.setAttribute("aria-expanded",String(open));
+  const tog=()=>{LOPEN.has(g.name)?LOPEN.delete(g.name):LOPEN.add(g.name);renderLinks()};
+  h.onclick=tog;
+  h.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();tog()}};
   L.appendChild(h);
   if(!open)return;
   const gr=el("div","lnkgrid");
-  g.items.forEach(i=>{const a=el("a","lnk",i.l);a.href=i.u;a.target="_blank";a.rel="noopener";gr.appendChild(a)});
+  g.items.forEach((i,ii)=>{const a=el("a","lnk "+MVC[(gi+ii)%4],i.l);
+   a.href=i.u;a.target="_blank";a.rel="noopener";gr.appendChild(a)});
   L.appendChild(gr)})}
 $("hLinks").onclick=()=>{LPOPEN=!LPOPEN;renderLinks()};
 
@@ -736,5 +762,5 @@ setTimeout(()=>{setBar(cfgd()?(SYNC.lastSync?"Last synced "+new Date(SYNC.lastSy
  if(cfgd())doSync(true)},600);
 
 load().then(()=>{TASKS.forEach(t=>{if(kids(t.id).length)COLL.add(t.id)});
- LINKGROUPS.forEach(g=>LCOLL.add(g.name));renderLinks();render()});
+ renderLinks();render()});
 </script></body></html>
