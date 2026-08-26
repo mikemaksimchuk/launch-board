@@ -124,6 +124,7 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
   <div class="mastbtns">
    <button id="bAdd" class="pri">Add task</button>
    <button id="bBatch">Upload batch</button>
+   <button id="bSyncTop">Sync</button>
   </div>
  </div>
  <div class="strip" id="strip"></div>
@@ -146,8 +147,8 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
  <h2 id="hDone" style="cursor:pointer">Completed ▸</h2>
  <div class="sub">Most recently finished first.</div>
  <div id="done" style="display:none"></div>
- <h2>Launch Pad</h2>
- <div class="sub">Static reference. 133 links, grouped by how often you reach for them.</div>
+ <h2 id="hLinks" style="cursor:pointer">Launch Pad</h2>
+ <div class="sub" id="linksSub">Static reference, grouped by how often you reach for them.</div>
  <div id="links"></div>
  <footer>
   <div>Launch Board · Michigan Virtual AI Lab · build <span id="bld"></span> · standalone</div>
@@ -587,18 +588,32 @@ $("pGo").onclick=()=>{try{const d=JSON.parse($("pText").value);
  if(stageImport(d))$("dPaste").close()}catch(e){toast("That isn't valid JSON")}};
 $("iCancel").onclick=()=>$("dImp").close();
 $("iReplace").onclick=async()=>{TASKS=INCOMING.tasks;META=INCOMING.meta||META;if(INCOMING.links)LINKGROUPS=INCOMING.links;await save();
- $("dImp").close();renderLinks();render();toast("Replaced")};
+ $("dImp").close();LINKGROUPS.forEach(g=>LCOLL.add(g.name));renderLinks();render();toast("Replaced")};
 $("iMerge").onclick=async()=>{const have=new Set(TASKS.map(t=>t.id));
  let n=0;INCOMING.tasks.forEach(t=>{if(!have.has(t.id)){TASKS.push(t);n++}});
  await save();$("dImp").close();render();toast(n+" new items merged")};
 
 // links
-function renderLinks(){const L=$("links");L.textContent="";
+let LPOPEN=false, LCOLL=new Set();
+function linkCount(){return LINKGROUPS.reduce((n,g)=>n+g.items.length,0)}
+function renderLinks(){
+ const L=$("links");L.textContent="";
+ $("hLinks").textContent="Launch Pad ("+linkCount()+") "+(LPOPEN?"▾":"▸");
+ $("hLinks").setAttribute("aria-expanded",String(LPOPEN));
+ $("linksSub").style.display=LPOPEN?"block":"none";
+ if(!LPOPEN)return;
  if(!LINKGROUPS.length){L.appendChild(el("div","empty","Your Launch Pad links arrive with your backup. Hit Import below."));return}
- LINKGROUPS.forEach(g=>{L.appendChild(el("h3","lg",g.name));
+ LINKGROUPS.forEach(g=>{
+  const open=!LCOLL.has(g.name);
+  const h=el("h3","lg",(open?"▾ ":"▸ ")+g.name+" ("+g.items.length+")");
+  h.style.cursor="pointer";h.setAttribute("aria-expanded",String(open));
+  h.onclick=()=>{LCOLL.has(g.name)?LCOLL.delete(g.name):LCOLL.add(g.name);renderLinks()};
+  L.appendChild(h);
+  if(!open)return;
   const gr=el("div","lnkgrid");
   g.items.forEach(i=>{const a=el("a","lnk",i.l);a.href=i.u;a.target="_blank";a.rel="noopener";gr.appendChild(a)});
   L.appendChild(gr)})}
+$("hLinks").onclick=()=>{LPOPEN=!LPOPEN;renderLinks()};
 
 $("bld").textContent=BUILD;
 
@@ -651,7 +666,12 @@ function mergeRows(local,remote){
   by[l.id]=lt>=rt?l:r});
  return{rows:Object.values(by),conflicts:conf}}
 
-function setBar(msg){lastMsg=msg;const b=$("syncbar");if(!b)return;b.textContent=msg}
+function stamp(){if(!SYNC.lastSync)return "never";const d=new Date(SYNC.lastSync);
+ const t=d.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
+ const sameDay=d.toDateString()===new Date().toDateString();
+ return sameDay?t:d.toLocaleDateString([], {month:"numeric",day:"numeric"})+" "+t}
+function setBar(msg){lastMsg=msg;const b=$("syncbar");if(b)b.textContent=msg;
+ const top=$("bSyncTop");if(top)top.textContent=syncing?"Syncing…":"Sync · "+stamp()}
 function queueSync(){if(!cfgd())return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>doSync(true),2500)}
 
 async function doSync(quiet){
@@ -678,6 +698,7 @@ async function doSync(quiet){
  syncing=false}
 
 $("bSync").onclick=()=>doSync(false);
+$("bSyncTop").onclick=()=>doSync(false);
 $("bSyncCfg").onclick=()=>{$("sRepo").value=SYNC.repo;$("sTok").value=SYNC.token;
  $("sPass").value=SYNC.pass;$("dSync").showModal()};
 $("sClose").onclick=()=>$("dSync").close();
@@ -693,5 +714,6 @@ document.addEventListener("visibilitychange",()=>{if(!document.hidden&&cfgd())do
 setTimeout(()=>{setBar(cfgd()?(SYNC.lastSync?"Last synced "+new Date(SYNC.lastSync).toLocaleString():"Sync configured — hit Sync"):"Sync not set up — this device only");
  if(cfgd())doSync(true)},600);
 
-load().then(()=>{renderLinks();TASKS.forEach(t=>{if(kids(t.id).length)COLL.add(t.id)});render()});
+load().then(()=>{TASKS.forEach(t=>{if(kids(t.id).length)COLL.add(t.id)});
+ LINKGROUPS.forEach(g=>LCOLL.add(g.name));renderLinks();render()});
 </script></body></html>
