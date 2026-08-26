@@ -1,0 +1,697 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Launch Board</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Launch Board">
+<meta name="theme-color" content="#093c44">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23093c44'/%3E%3Crect y='150' width='180' height='30' fill='%23b5cd34'/%3E%3Ctext x='90' y='112' font-family='sans-serif' font-size='92' font-weight='800' fill='%23fff' text-anchor='middle'%3ELB%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23093c44'/%3E%3Ctext x='32' y='45' font-size='32' font-weight='800' fill='%23fff' text-anchor='middle' font-family='sans-serif'%3ELB%3C/text%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--blackTeal:#091d20;--darkTeal:#093c44;--teal:#115e6e;--midTeal:#2f8d98;
+ --lightTeal:#C7DEE0;--paleBlue:#f3fafc;--green:#b5cd34;--orange:#f7941e;
+ --cream:#fff4e7;--lightGray:#6d6e71;--white:#fff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Figtree,system-ui,sans-serif;color:var(--blackTeal);background:#fbfdfd;
+ line-height:1.45;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1320px;margin:0 auto;padding:26px 20px 80px}
+.mast{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;
+ border-bottom:5px solid var(--green);padding-bottom:14px}
+h1{font-size:27px;font-weight:800;color:var(--darkTeal);letter-spacing:-.025em}
+.tag{font-size:12.5px;color:var(--teal);font-weight:600;margin-top:3px}
+.mastbtns{display:flex;gap:7px}
+button{font-family:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--lightTeal);
+ background:var(--white);color:var(--darkTeal);font-size:12.5px;font-weight:600;padding:8px 13px;transition:.12s}
+button:hover{border-color:var(--midTeal);background:var(--paleBlue)}
+button:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+button.pri{background:var(--darkTeal);color:#fff;border-color:var(--darkTeal)}
+button.pri:hover{background:var(--teal);color:#fff}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:9px;margin:18px 0}
+.stat{background:var(--white);border:1px solid var(--lightTeal);border-radius:8px;padding:11px 13px;
+ cursor:pointer;transition:.12s;text-align:left}
+.stat:hover{border-color:var(--midTeal)}
+.stat.on{border-color:var(--orange);background:var(--cream)}
+.stat b{display:block;font-size:23px;font-weight:800;color:var(--darkTeal);letter-spacing:-.02em}
+.stat span{font-size:10.5px;color:var(--lightGray);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.bar{background:var(--white);border:1px solid var(--lightTeal);border-radius:9px;padding:12px 14px;margin-bottom:14px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{border-radius:99px;padding:5px 12px;font-size:12px;font-weight:700;border:2px solid;
+ background:var(--white);cursor:pointer;transition:.12s;opacity:.42}
+.chip.on{opacity:1}
+.row2{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+select,input[type=text],input[type=date],input[type=search],textarea{font-family:inherit;font-size:12.5px;
+ padding:7px 10px;border:1px solid var(--lightTeal);border-radius:6px;color:var(--blackTeal);background:var(--white)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--orange);outline-offset:-1px}
+.lbl{font-size:10.5px;font-weight:700;color:var(--lightGray);text-transform:uppercase;letter-spacing:.05em}
+#list{display:flex;flex-direction:column;gap:5px}
+.task{border-radius:7px;border:1px solid var(--lightTeal);border-left-width:5px;background:var(--white);
+ display:grid;grid-template-columns:30px 1fr auto;gap:9px;align-items:start;padding:9px 11px;transition:.1s}
+.task:hover{box-shadow:0 1px 7px rgba(9,60,68,.09)}
+.task.kid{margin-left:26px}
+.task.pinned{box-shadow:inset 3px 0 0 var(--orange)}
+.task.stale{border-left-style:dashed}
+.task.stale::after{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;
+ background:repeating-linear-gradient(135deg,#e8a33d 0 4px,transparent 4px 8px);pointer-events:none}
+.task{position:relative}
+.pill.stale{background:#fff0d6;color:#7a4a00;border-color:#e8b96a;font-weight:800}
+.pill.stale.bad{background:#fde8e6;color:#98200f;border-color:#f0b4ab}
+.caret{background:none;border:none;padding:0 4px 0 0;font-size:11px;color:var(--teal);
+ cursor:pointer;font-weight:800;line-height:1}
+.caret:hover{color:var(--orange)}
+.prog{font-size:10px;color:var(--lightGray);font-weight:600;margin-left:5px}
+.cb{width:19px;height:19px;border:2px solid var(--midTeal);border-radius:4px;background:var(--white);
+ cursor:pointer;margin-top:2px;flex:none;padding:0}
+.cb:hover{background:var(--paleBlue)}
+.cb.done{background:var(--darkTeal);border-color:var(--darkTeal);color:#fff;font-size:12px;line-height:15px}
+.ttl{font-size:13.5px;font-weight:600;cursor:pointer;word-break:break-word}
+.ttl.strike{text-decoration:line-through;color:var(--lightGray)}
+.meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;align-items:center}
+.pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:var(--paleBlue);
+ color:var(--teal);border:1px solid var(--lightTeal);text-transform:uppercase;letter-spacing:.04em}
+.pill.due{background:var(--cream);color:#8a4a00;border-color:#f0d5b3}
+.pill.od{background:#fde8e6;color:#a02318;border-color:#f3c3bd}
+.pill.cl{background:#fdf3dd;color:#8a6100;border-color:#efd79a}
+.pill.vf{background:#fdf0ee;color:#a0341f;border-color:#f2ccc4}
+.pill.tier{background:var(--darkTeal);color:#fff;border-color:var(--darkTeal)}
+.heat{text-align:right;flex:none;min-width:62px}
+.heatn{font-size:16px;font-weight:800;color:var(--darkTeal);letter-spacing:-.02em}
+.heatb{height:4px;width:56px;background:var(--lightTeal);border-radius:99px;overflow:hidden;margin-top:3px}
+.heatf{height:100%;border-radius:99px;transition:width .3s}
+.why{font-size:9.5px;color:var(--lightGray);margin-top:3px;white-space:nowrap}
+.detail{grid-column:1/-1;border-top:1px dashed var(--lightTeal);margin-top:8px;padding-top:9px;
+ display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:11px}
+.fld{font-size:11.5px}
+.fld .k{font-size:9.5px;font-weight:700;color:var(--lightGray);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.raw{font-family:ui-monospace,monospace;font-size:10.5px;background:var(--paleBlue);padding:7px 9px;
+ border-radius:5px;border:1px solid var(--lightTeal);white-space:pre-wrap;word-break:break-word;max-height:140px;overflow:auto}
+h2{font-size:16px;font-weight:800;color:var(--darkTeal);border-bottom:3px solid var(--green);
+ padding-bottom:5px;display:inline-block;margin:30px 0 4px}
+.sub{font-size:11.5px;color:var(--lightGray);margin-bottom:13px}
+.empty{padding:34px;text-align:center;color:var(--lightGray);font-size:13px;
+ border:1px dashed var(--lightTeal);border-radius:9px;background:var(--white)}
+dialog{border:none;border-radius:11px;padding:0;max-width:660px;width:94%;box-shadow:0 14px 46px rgba(9,29,32,.3)}
+dialog::backdrop{background:rgba(9,29,32,.42)}
+.dlg{padding:20px 22px}
+.dlg h3{font-size:17px;color:var(--darkTeal);font-weight:800;margin-bottom:3px}
+.dlg .sub{margin-bottom:15px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid2 label,.full{display:block;margin-bottom:9px}
+.full{grid-column:1/-1}
+.dlg input,.dlg select,.dlg textarea{width:100%;margin-top:3px}
+.acts{display:flex;gap:8px;justify-content:flex-end;margin-top:15px;padding-top:13px;border-top:1px solid var(--lightTeal)}
+.lnkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:8px;margin-bottom:22px}
+a.lnk{display:block;padding:10px 12px;background:var(--paleBlue);border:1px solid var(--lightTeal);
+ border-left:4px solid var(--orange);border-radius:5px;text-decoration:none;color:var(--orange);
+ font-size:12.5px;font-weight:600;transition:.12s}
+a.lnk:hover{background:var(--white);border-color:var(--midTeal);transform:translateX(2px)}
+h3.lg{font-size:13px;font-weight:700;color:var(--teal);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.05em}
+footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;display:flex;
+ justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--lightGray);font-style:italic}
+.nudge{background:var(--cream);border:1px solid #f0d5b3;color:#8a4a00;padding:8px 12px;
+ border-radius:6px;font-size:12px;font-weight:600;font-style:normal;margin-top:10px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--darkTeal);
+ color:#fff;padding:11px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:99;
+ opacity:0;pointer-events:none;transition:.25s}
+.toast.on{opacity:1}
+@media(max-width:620px){.task{grid-template-columns:26px 1fr}.heat{grid-column:2;text-align:left;margin-top:5px}
+ .heatb{width:100%}.grid2{grid-template-columns:1fr}.wrap{padding:16px 12px 60px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style></head><body>
+<div class="wrap">
+ <div class="mast">
+  <div><h1>Launch Board</h1><div class="tag" id="tag"></div></div>
+  <div class="mastbtns">
+   <button id="bAdd" class="pri">Add task</button>
+   <button id="bBatch">Upload batch</button>
+  </div>
+ </div>
+ <div class="strip" id="strip"></div>
+ <div class="bar">
+  <div class="chips" id="cats"></div>
+  <div class="row2">
+   <input type="search" id="q" placeholder="Search titles, notes, people…" style="flex:1;min-width:170px">
+   <select id="fTier"><option value="">All tiers</option></select>
+   <select id="fStatus"><option value="">All statuses</option></select>
+   <select id="sort1"><option value="heat">Sort: Heat</option><option value="due">Sort: Due date</option>
+    <option value="title">Sort: Title</option><option value="cat">Sort: Category</option>
+    <option value="tier">Sort: Tier</option></select>
+   <select id="sort2"><option value="">Then: —</option><option value="heat">Then: Heat</option>
+    <option value="due">Then: Due date</option><option value="title">Then: Title</option>
+    <option value="cat">Then: Category</option></select>
+   <button id="bClear">Reset</button>
+  </div>
+ </div>
+ <div id="list"></div>
+ <h2 id="hDone" style="cursor:pointer">Completed ▸</h2>
+ <div class="sub">Most recently finished first.</div>
+ <div id="done" style="display:none"></div>
+ <h2>Launch Pad</h2>
+ <div class="sub">Static reference. 133 links, grouped by how often you reach for them.</div>
+ <div id="links"></div>
+ <footer>
+  <div>Launch Board · Michigan Virtual AI Lab · build <span id="bld"></span> · standalone</div>
+  <div class="mastbtns">
+   <button id="bExp">Export backup</button>
+   <button id="bCsv">Export CSV</button>
+   <button id="bImp">Import backup</button>
+   <button id="bSync">Sync</button>
+   <button id="bSyncCfg">Sync setup</button>
+   <button id="bPaste">Paste backup</button>
+  </div>
+ </footer>
+ <div id="syncbar" style="font-size:11.5px;color:var(--lightGray);font-style:italic;margin-top:8px"></div>
+ <div id="nudge"></div>
+</div>
+<input type="file" id="file" accept=".json" style="display:none">
+<dialog id="dSync"><div class="dlg"><h3>Sync setup</h3>
+ <div class="sub">Your board is encrypted on this device before it leaves. GitHub only ever stores an unreadable blob.
+ The token and passphrase are saved on this device only &mdash; they are never sent anywhere except GitHub.</div>
+ <div class="grid2">
+  <label class="full"><span class="lbl">Repository (owner/name)</span>
+   <input type="text" id="sRepo" placeholder="yourname/launch-board-data"></label>
+  <label class="full"><span class="lbl">Fine-grained token &mdash; Contents: read and write</span>
+   <input type="password" id="sTok" placeholder="github_pat_..."></label>
+  <label class="full"><span class="lbl">Passphrase &mdash; must match on every device</span>
+   <input type="password" id="sPass" placeholder="choose something long"></label>
+ </div>
+ <div class="nudge" style="margin-top:12px">If you lose this passphrase the synced copy cannot be recovered. Nobody can reset it.</div>
+ <div class="acts"><button id="sTest">Test connection</button><button id="sClose">Cancel</button>
+  <button id="sSave" class="pri">Save</button></div>
+</div></dialog>
+<div class="toast" id="toast"></div>
+
+<dialog id="dAdd"><div class="dlg"><h3 id="addTitle">Add task</h3>
+ <div class="sub">Only the title is required.</div>
+ <div class="grid2">
+  <label class="full"><span class="lbl">Title</span><input type="text" id="aTitle"></label>
+  <label><span class="lbl">Category</span><select id="aCat"></select></label>
+  <label><span class="lbl">Project</span><input type="text" id="aProj"></label>
+  <label><span class="lbl">Tier</span><select id="aTier"></select></label>
+  <label><span class="lbl">Status</span><select id="aStatus"></select></label>
+  <label><span class="lbl">Start</span><input type="date" id="aStart"></label>
+  <label><span class="lbl">Due</span><input type="date" id="aDue"></label>
+  <label><span class="lbl">Effort</span><select id="aEffort"></select></label>
+  <label><span class="lbl">Nest under (ID)</span><input type="text" id="aParent" placeholder="e.g. T-001"></label>
+  <label><span class="lbl">Depends on (IDs)</span><input type="text" id="aDeps" placeholder="comma separated"></label>
+  <label><span class="lbl">People</span><input type="text" id="aPeople"></label>
+  <label class="full"><span class="lbl">Notes</span><textarea id="aNotes" rows="2"></textarea></label>
+ </div>
+ <div class="acts"><button id="aCancel">Cancel</button><button id="aSave" class="pri">Save task</button></div>
+</div></dialog>
+
+<dialog id="dBatch"><div class="dlg"><h3>Upload batch</h3>
+ <div class="sub">Paste anything — a Wrike list, phone reminders, meeting notes. One item per line. Optional markers: <b>#home #boat #work #church #travel #personal</b> for category, <b>!tomorrow !friday !9/15</b> for a due date, <b>!!</b> to pin. Nothing is added until you review it.</div>
+ <textarea id="bText" rows="8" style="width:100%" placeholder="Paste here — or dictate to Siri and paste your reminders.&#10;&#10;Fix the binnacle straps #boat !saturday&#10;Call Carla about the UP trip #work !tomorrow&#10;Submit August mileage #travel !! "></textarea>
+ <div class="row2"><span class="lbl">Assign all to</span>
+  <select id="bCat"></select><button id="bParse" class="pri">Review</button></div>
+ <div id="bPrev"></div>
+ <div class="acts"><button id="bCancel">Cancel</button><button id="bCommit" class="pri" style="display:none">Add these</button></div>
+</div></dialog>
+
+<dialog id="dPaste"><div class="dlg"><h3>Paste a backup</h3>
+ <div class="sub">If downloads or file pickers are blocked, paste the backup JSON straight in.</div>
+ <textarea id="pText" rows="7" style="width:100%" placeholder='{"build":"…","tasks":[…]}'></textarea>
+ <div class="acts"><button id="pCancel">Cancel</button><button id="pGo" class="pri">Read it</button></div>
+</div></dialog>
+<dialog id="dImp"><div class="dlg"><h3>Import backup</h3>
+ <div class="sub" id="impInfo"></div>
+ <div class="acts"><button id="iCancel">Cancel</button>
+  <button id="iMerge">Merge — keep both</button>
+  <button id="iReplace" class="pri">Replace everything</button></div>
+</div></dialog>
+<script>
+const SEED=[];
+let LINKGROUPS=[];
+
+const CATS={"Home":["#C62828","#FCE8E6"],"Boat":["#1565C0","#E3EFFB"],"Work":["#2E7D32","#E6F4E6"],
+ "Church":["#D81B60","#FCE4EC"],"Personal Admin":["#6A1B9A","#F2E7F7"],"Travel & Expense":["#E65100","#FDEDE0"]};
+const TIERS=["Primary","Secondary","Episodic","Not Finalized"];
+const STATUSES=["Open","In Progress","Blocked","Scheduled","Future Work","Paused","Done","Archived"];
+const EFFORT={"":0,"XS":.25,"S":.5,"M":1,"L":2,"XL":4};
+const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
+const TODAY=new Date("2026-08-26T00:00:00");
+const BUILD="2026.08.26-1";
+const KEY="launchboard-"+BUILD;
+let LEGACY=null;
+let TASKS=[],META={lastExport:null},COLL=new Set(),F={cats:new Set(),tier:"",status:"",q:"",s1:"heat",s2:"",stat:""},OPEN=new Set();
+
+const $=id=>document.getElementById(id);
+const days=(a,b)=>Math.round((a-b)/864e5);
+const pd=s=>{if(!s)return null;const d=new Date(s+"T00:00:00");return isNaN(d)?null:d};
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");setTimeout(()=>t.classList.remove("on"),2200)}
+
+function alive(){return TASKS.filter(t=>!t.deleted)}
+function kids(id){return TASKS.filter(t=>t.parent===id&&!t.deleted)}
+function descend(id,acc){acc=acc||[];kids(id).forEach(k=>{acc.push(k);descend(k.id,acc)});return acc}
+function staleDays(t){
+ if(t.status==="Done"||t.status==="Archived"||t.status==="Paused")return 0;
+ const live=!!pd(t.due)||t.status==="In Progress";
+ if(!live)return 0;
+ return Math.max(0,days(TODAY,pt(t.touched)||TODAY))}
+function blockCount(id){return TASKS.filter(t=>(t.deps||"").split(/[,\s]+/).includes(id)).length}
+
+function heat(t){
+ if(t.status==="Done"||t.status==="Archived")return{n:0,p:0,why:""};
+ if(t.status==="Paused")return{n:0,p:0,why:"paused"};
+ let s=0,why=[];
+ const due=pd(t.due);
+ if(due){
+  const run=t.effort?EFFORT[t.effort]:Math.min(5,1+.5*kids(t.id).length);
+  const dts=days(due,TODAY)-run, dtd=days(due,TODAY);
+  if(dts<=0)s+=45; else s+=Math.max(0,45*(1-dts/30));
+  s+=dtd<=0?15:Math.max(0,15*(1-dtd/10));
+  if(dtd<0)why.push(Math.abs(dtd)+"d overdue");
+  else if(dtd<=2)why.push(dtd===0?"due today":dtd===1?"due tomorrow":"due in 2d");
+  else if(dts<=0)why.push("start now");
+  else if(dts<=7)why.push(dts+"d to start");
+ }
+ s+=TIERW[t.tier]!==undefined?TIERW[t.tier]:6;
+ if(t.tier==="Primary")why.push("primary");
+ const live=!!due||t.status==="In Progress";
+ if(live){const st=days(TODAY,pt(t.touched)||TODAY);const v=Math.min(15,st/21*15);s+=v;if(v>7)why.push("gone quiet")}
+ const b=blockCount(t.id);
+ if(b){s+=Math.min(10,b*4);why.push("blocks "+b)}
+ const n=Math.round(Math.min(100,s));
+ return{n:n,p:n,why:why.slice(0,2).join(" · ")}
+}
+function heatColor(n){return n>=70?"#C62828":n>=45?"#E65100":n>=25?"#f7941e":"#2f8d98"}
+
+async function load(){
+ try{const r={value:localStorage.getItem(KEY)};
+  if(r&&r.value){const d=JSON.parse(r.value);TASKS=d.tasks||[];META=d.meta||META;LINKGROUPS=d.links||[];return}}catch(e){}
+ // first run of this build — look for data saved under an earlier build before seeding
+ try{const keys=Object.keys(localStorage).map(k=>typeof k==="string"?k:(k&&k.key)||"").filter(k=>k&&k!==KEY).sort();
+  if(keys.length){const prev=keys[keys.length-1];
+   const pr={value:localStorage.getItem(prev)};
+   if(pr&&pr.value){const d=JSON.parse(pr.value);
+    if(d.tasks&&d.tasks.length)LEGACY={key:prev,tasks:d.tasks,meta:d.meta||{}}}}}catch(e){}
+ TASKS=JSON.parse(JSON.stringify(SEED));await save()
+}
+async function save(){try{localStorage.setItem(KEY,JSON.stringify({tasks:TASKS,meta:META,links:LINKGROUPS}));queueSync()}
+ catch(e){toast('Storage full or blocked — export a backup now')}}
+
+function nowISO(){return new Date().toISOString()}
+function pt(v){if(!v)return null;const d=new Date(v.length<=10?v+"T00:00:00":v);return isNaN(d)?null:d}
+function touch(t){t.touched=nowISO()}
+
+async function complete(t,val){
+ const on=val===undefined?t.status!=="Done":val;
+ const set=[t].concat(descend(t.id));
+ set.forEach(x=>{x.status=on?"Done":"Open";x.done=on?new Date().toISOString().slice(0,10):"";touch(x)});
+ await save();render();
+ const n=set.length-1;
+ toast(on?(n?`Done — and ${n} nested item${n>1?"s":""}`:"Done"):"Reopened")
+}
+
+function matches(t){
+ if(F.cats.size&&!F.cats.has(t.cat))return false;
+ if(F.tier&&t.tier!==F.tier)return false;
+ if(F.status&&t.status!==F.status)return false;
+ if(F.stat==="hot"&&heat(t).n<60)return false;
+ if(F.stat==="overdue"){const d=pd(t.due);if(!d||d>=TODAY)return false}
+ if(F.stat==="verify"&&!t.verify)return false;
+ if(F.stat==="dupe"&&!t.cluster)return false;
+ if(F.stat==="stale"&&staleDays(t)<14)return false;
+ if(F.stat==="soon"){const d=pd(t.due);if(!d||days(d,TODAY)>7)return false}
+ if(F.q){const s=(t.title+" "+t.notes+" "+t.people+" "+t.proj+" "+t.raw).toLowerCase();
+  if(!s.includes(F.q.toLowerCase()))return false}
+ return true
+}
+function cmp(k){return(a,b)=>{
+ if(k==="heat")return heat(b).n-heat(a).n;
+ if(k==="due"){const x=pd(a.due),y=pd(b.due);if(!x&&!y)return 0;if(!x)return 1;if(!y)return -1;return x-y}
+ if(k==="title")return a.title.localeCompare(b.title);
+ if(k==="cat")return a.cat.localeCompare(b.cat);
+ if(k==="tier")return(TIERS.indexOf(a.tier)+9)%9-(TIERS.indexOf(b.tier)+9)%9;
+ return 0}}
+
+function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!==undefined)e.textContent=txt;return e}
+function pill(txt,cls){return el("span","pill"+(cls?" "+cls:""),txt)}
+
+function taskEl(t,isKid){
+ const[bd,bg]=CATS[t.cat]||["#6d6e71","#f3fafc"];
+ const sd=staleDays(t), isStale=sd>=14;
+ const d=el("div","task"+(isKid?" kid":"")+(t.pin?" pinned":"")+(isStale?" stale":""));
+ d.style.borderColor=bd;d.style.background=bg;
+ const cb=el("button","cb"+(t.status==="Done"?" done":""),t.status==="Done"?"✓":"");
+ cb.setAttribute("aria-label","Complete "+t.title);
+ cb.onclick=e=>{e.stopPropagation();complete(t)};
+ d.appendChild(cb);
+ const mid=el("div");
+ const nk=kids(t.id).length;
+ const head=el("div");head.style.display="flex";head.style.alignItems="baseline";
+ if(nk){const car=el("button","caret",COLL.has(t.id)?"▶":"▼");
+  car.setAttribute("aria-label",(COLL.has(t.id)?"Expand ":"Collapse ")+nk+" nested items");
+  car.setAttribute("aria-expanded",String(!COLL.has(t.id)));
+  car.onclick=e=>{e.stopPropagation();COLL.has(t.id)?COLL.delete(t.id):COLL.add(t.id);render()};
+  head.appendChild(car)}
+ const ttl=el("div","ttl"+(t.status==="Done"?" strike":""),t.title);
+ ttl.onclick=()=>{OPEN.has(t.id)?OPEN.delete(t.id):OPEN.add(t.id);render()};
+ head.appendChild(ttl);
+ if(nk&&COLL.has(t.id)){const kk=descend(t.id);
+  head.appendChild(el("span","prog",kk.filter(x=>x.status==="Done").length+"/"+kk.length+" done"))}
+ mid.appendChild(head);
+ const m=el("div","meta");
+ m.appendChild(pill(t.cat));
+ if(t.tier)m.appendChild(pill(t.tier,"tier"));
+ if(t.status!=="Open")m.appendChild(pill(t.status));
+ const due=pd(t.due);
+ if(due)m.appendChild(pill("due "+t.due,due<TODAY?"od":"due"));
+ if(t.cluster)m.appendChild(pill("⧉ "+t.cluster+" ("+(t.clusterN||"")+")","cl"));
+ if(t.effort)m.appendChild(pill(t.effort));
+ if(t.verify)m.appendChild(pill("verify","vf"));
+ if(isStale)m.appendChild(pill("◷ "+sd+" days quiet","stale"+(sd>=30?" bad":"")));
+ if(nk)m.appendChild(pill(nk+" nested"));
+ mid.appendChild(m);
+ if(OPEN.has(t.id))mid.appendChild(detailEl(t));
+ d.appendChild(mid);
+ const h=heat(t),hw=el("div","heat");
+ hw.appendChild(el("div","heatn",String(h.n)));
+ const bar=el("div","heatb"),fil=el("div","heatf");
+ fil.style.width=h.p+"%";fil.style.background=heatColor(h.n);bar.appendChild(fil);hw.appendChild(bar);
+ if(h.why)hw.appendChild(el("div","why",h.why));
+ d.appendChild(hw);
+ return d
+}
+function detailEl(t){
+ const w=el("div","detail");
+ const ro=(k,v)=>{if(!v)return;const f=el("div","fld");f.appendChild(el("div","k",k));
+  f.appendChild(el("div",null,v));w.appendChild(f)};
+ const commit=async(full)=>{touch(t);await save();full?render():null};
+ const fld=(k,node,full)=>{const f=el("div","fld");if(full)f.style.gridColumn="1/-1";
+  f.appendChild(el("div","k",k));f.appendChild(node);w.appendChild(f);return f};
+ const txt=(k,key,ph,full)=>{const i=document.createElement("input");i.type="text";
+  i.value=t[key]||"";i.placeholder=ph||"";i.style.width="100%";
+  i.onchange=async()=>{t[key]=i.value;await commit(key==="title"||key==="parent"||key==="deps")};
+  fld(k,i,full)};
+ const dt=(k,key)=>{const i=document.createElement("input");i.type="date";i.value=t[key]||"";
+  i.style.width="100%";i.onchange=async()=>{t[key]=i.value;await commit(true)};fld(k,i)};
+ const sel=(k,key,opts,blank)=>{const sl=el("select");sl.style.width="100%";
+  (blank?[""].concat(opts):opts).forEach(v=>{const o=el("option",null,v||"— none —");o.value=v;
+   if((t[key]||"")===v)o.selected=true;sl.appendChild(o)});
+  sl.onchange=async()=>{t[key]=sl.value;
+   if(key==="status"&&sl.value==="Done")t.done=new Date().toISOString().slice(0,10);
+   await commit(true)};fld(k,sl)};
+
+ txt("Title","title",null,true);
+ sel("Category","cat",Object.keys(CATS));
+ txt("Project","proj","e.g. Partner Districts");
+ sel("Tier","tier",TIERS,true);
+ sel("Status","status",STATUSES);
+ dt("Start","start"); dt("Due","due");
+ sel("Effort","effort",["XS","S","M","L","XL"],true);
+ txt("Nested under (ID)","parent","e.g. T-001");
+ txt("Depends on (IDs)","deps","comma separated");
+ txt("People","people");
+ const ta=document.createElement("textarea");ta.rows=2;ta.value=t.notes||"";ta.style.width="100%";
+ ta.onchange=async()=>{t.notes=ta.value;await commit(false)};
+ fld("My read",ta,true);
+
+ const r=el("div","row2");
+ const pin=el("button",null,t.pin?"★ Pinned — unpin":"Pin to top");
+ pin.onclick=async()=>{t.pin=t.pin?"":"P1";touch(t);await save();render()};
+ const vf=el("button",null,t.verify?"Clear review flag":"Flag for review");
+ vf.onclick=async()=>{t.verify=!t.verify;touch(t);await save();render()};
+ const del=el("button",null,"Delete");
+ del.onclick=async()=>{if(!confirm('Delete "'+t.title+'"? Nested items stay.'))return;
+  t.deleted=nowISO();t.touched=t.deleted;await save();render();toast("Deleted")};
+ r.appendChild(pin);r.appendChild(vf);r.appendChild(del);
+ fld("Actions",r,true);
+
+ ro("ID",t.id);ro("Source",t.src);ro("Wrike folder",t.folder);
+ ro("Original status",t.rawStatus);ro("Last touched",(t.touched||"").replace("T"," ").slice(0,16));ro("Cross-ref",t.xref);
+ if(t.raw&&t.raw!==t.title){const f=el("div","fld");f.style.gridColumn="1/-1";
+  f.appendChild(el("div","k","Raw source — never edited"));
+  f.appendChild(el("div","raw",t.raw));w.appendChild(f)}
+ return w
+}
+function render(){
+ $("tag").textContent=alive().length+" items · "+alive().filter(t=>t.status!=="Done"&&t.status!=="Archived").length+" open";
+ const live=alive().filter(t=>t.status!=="Done");
+ const S=[["all","Everything",live.length],["hot","Running hot",live.filter(t=>heat(t).n>=60).length],
+  ["soon","Next 7 days",live.filter(t=>{const d=pd(t.due);return d&&days(d,TODAY)<=7}).length],
+  ["overdue","Overdue",live.filter(t=>{const d=pd(t.due);return d&&d<TODAY}).length],
+  ["stale","Gone quiet",live.filter(t=>staleDays(t)>=14).length],
+  ["verify","Needs a look",live.filter(t=>t.verify).length],
+  ["dupe","Duplicates",live.filter(t=>t.cluster).length]];
+ const st=$("strip");st.textContent="";
+ S.forEach(([k,lab,n])=>{const b=el("button","stat"+((F.stat===k||(k==="all"&&!F.stat))?" on":""));
+  b.appendChild(el("b",null,String(n)));b.appendChild(el("span",null,lab));
+  b.onclick=()=>{F.stat=k==="all"?"":k;render()};st.appendChild(b)});
+ const cw=$("cats");cw.textContent="";
+ Object.keys(CATS).forEach(c=>{const[bd,bg]=CATS[c];
+  const b=el("button","chip"+(F.cats.has(c)||!F.cats.size?" on":""),c);
+  b.style.borderColor=bd;b.style.color=bd;b.style.background=F.cats.has(c)?bg:"#fff";
+  b.onclick=()=>{F.cats.has(c)?F.cats.delete(c):F.cats.add(c);render()};cw.appendChild(b)});
+ const pool=alive().filter(t=>t.status!=="Done"&&matches(t));
+ if(F.stat==="soon"&&F.s1==="heat")F.s1="due";
+ const ids=new Set(pool.map(t=>t.id));
+ let roots=pool.filter(t=>!t.parent||!ids.has(t.parent));
+ roots.sort(cmp(F.s1));if(F.s2)roots=roots.sort((a,b)=>cmp(F.s1)(a,b)||cmp(F.s2)(a,b));
+ roots.sort((a,b)=>(b.pin?1:0)-(a.pin?1:0));
+ const L=$("list");L.textContent="";
+ if(!roots.length){L.appendChild(el("div","empty",alive().length?"Nothing matches. Reset the filters, or add a task.":"Empty board. Hit Import at the bottom and choose your backup file."));}
+ roots.forEach(t=>{L.appendChild(taskEl(t,false));
+  if(!COLL.has(t.id))kids(t.id).filter(k=>pool.includes(k)).sort(cmp(F.s1))
+   .forEach(k=>L.appendChild(taskEl(k,true)))});
+ const dn=alive().filter(t=>t.status==="Done").sort((a,b)=>(b.done||"").localeCompare(a.done||""));
+ const D=$("done");D.textContent="";
+ if(!dn.length)D.appendChild(el("div","empty","Nothing finished yet."));
+ else dn.forEach(t=>D.appendChild(taskEl(t,false)));
+ $("hDone").textContent="Completed ("+dn.length+") "+(D.style.display==="none"?"▸":"▾");
+ const nd=$("nudge");nd.textContent="";
+ if(LEGACY){const b=el("div","nudge");b.style.background="#e9f4f6";b.style.borderColor="#9fc9d1";
+  b.style.color="#093c44";
+  b.appendChild(el("div",null,"Found "+LEGACY.tasks.length+" items saved under an earlier build ("+LEGACY.key+"). This build started from its own copy of "+SEED.length+" items."));
+  const r=el("div","row2");
+  const rep=el("button",null,"Use the older data instead");
+  rep.onclick=async()=>{TASKS=LEGACY.tasks;META=LEGACY.meta||META;LEGACY=null;await save();render();toast("Carried over")};
+  const mg=el("button",null,"Merge in anything new");
+  mg.onclick=async()=>{const have=new Set(TASKS.map(t=>t.id));let n=0;
+   LEGACY.tasks.forEach(t=>{if(!have.has(t.id)){TASKS.push(t);n++}});
+   LEGACY=null;await save();render();toast(n+" merged")};
+  const ig=el("button",null,"Ignore");
+  ig.onclick=()=>{LEGACY=null;render()};
+  r.appendChild(rep);r.appendChild(mg);r.appendChild(ig);b.appendChild(r);nd.appendChild(b)}
+ if(!META.lastExport)nd.appendChild(el("div","nudge","No backup yet. Export one — this data lives in the artifact."));
+ else if(days(TODAY,pd(META.lastExport))>7)
+  nd.appendChild(el("div","nudge","Last backup "+days(TODAY,pd(META.lastExport))+" days ago."));
+}
+
+// filters
+["fTier","fStatus","aTier","aStatus","aCat","bCat","aEffort"].forEach(id=>{});
+TIERS.forEach(t=>{const o=el("option",null,t);o.value=t;$("fTier").appendChild(o)});
+STATUSES.forEach(s=>{const o=el("option",null,s);o.value=s;$("fStatus").appendChild(o)});
+Object.keys(CATS).forEach(c=>{[$("aCat"),$("bCat")].forEach(sel=>{const o=el("option",null,c);o.value=c;sel.appendChild(o)})});
+TIERS.concat([""]).forEach(t=>{const o=el("option",null,t||"— none —");o.value=t;$("aTier").appendChild(o)});
+STATUSES.forEach(s=>{const o=el("option",null,s);o.value=s;$("aStatus").appendChild(o)});
+["","XS","S","M","L","XL"].forEach(v=>{const o=el("option",null,v||"— none —");o.value=v;$("aEffort").appendChild(o)});
+$("q").oninput=e=>{F.q=e.target.value;render()};
+$("fTier").onchange=e=>{F.tier=e.target.value;render()};
+$("fStatus").onchange=e=>{F.status=e.target.value;render()};
+$("sort1").onchange=e=>{F.s1=e.target.value;render()};
+$("sort2").onchange=e=>{F.s2=e.target.value;render()};
+$("bClear").onclick=()=>{F={cats:new Set(),tier:"",status:"",q:"",s1:"heat",s2:"",stat:""};
+ $("q").value="";$("fTier").value="";$("fStatus").value="";$("sort1").value="heat";$("sort2").value="";render()};
+$("hDone").onclick=()=>{const d=$("done");d.style.display=d.style.display==="none"?"flex":"none";
+ d.style.flexDirection="column";d.style.gap="5px";render()};
+
+// add
+$("bAdd").onclick=()=>{["aTitle","aProj","aParent","aDeps","aPeople","aNotes","aStart","aDue"].forEach(i=>$(i).value="");
+ $("dAdd").showModal()};
+$("aCancel").onclick=()=>$("dAdd").close();
+$("aSave").onclick=async()=>{const t=$("aTitle").value.trim();if(!t){toast("Give it a title first");return}
+ const n=TASKS.filter(x=>x.id.startsWith("M-")).length+1;
+ TASKS.push({id:"M-"+String(n).padStart(3,"0"),title:t,cat:$("aCat").value,proj:$("aProj").value,
+  folder:"",parent:$("aParent").value.trim(),deps:$("aDeps").value.trim(),pin:"",
+  status:$("aStatus").value,start:$("aStart").value,due:$("aDue").value,done:"",assignee:"",
+  people:$("aPeople").value,src:"Added by hand",raw:t,xref:"",verify:false,notes:$("aNotes").value,
+  tier:$("aTier").value,cluster:"",effort:$("aEffort").value,touched:nowISO(),rawStatus:""});
+ await save();$("dAdd").close();render();toast("Added")};
+
+// batch
+let PENDING=[];
+$("bBatch").onclick=()=>{$("bText").value="";$("bPrev").textContent="";$("bCommit").style.display="none";$("dBatch").showModal()};
+$("bCancel").onclick=()=>$("dBatch").close();
+$("bParse").onclick=()=>{
+ const CT={home:"Home",boat:"Boat",work:"Work",church:"Church",travel:"Travel & Expense",
+  personal:"Personal Admin",admin:"Personal Admin"};
+ const DOW=["sun","mon","tue","wed","thu","fri","sat"];
+ const iso=d=>d.toISOString().slice(0,10);
+ function grabDate(s){
+  let due="",m;
+  if(m=s.match(/!(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/)){
+   let y=m[3]?(m[3].length===2?"20"+m[3]:m[3]):"2026";
+   due=y+"-"+String(+m[1]).padStart(2,"0")+"-"+String(+m[2]).padStart(2,"0");
+   s=s.replace(m[0],"")}
+  else if(/!today/i.test(s)){due=iso(TODAY);s=s.replace(/!today/ig,"")}
+  else if(/!tomorrow/i.test(s)){const d=new Date(TODAY);d.setDate(d.getDate()+1);due=iso(d);s=s.replace(/!tomorrow/ig,"")}
+  else if(m=s.match(/!(sun|mon|tue|wed|thu|fri|sat)[a-z]*/i)){
+   const want=DOW.indexOf(m[1].toLowerCase());const d=new Date(TODAY);
+   let add=(want-d.getDay()+7)%7||7;d.setDate(d.getDate()+add);due=iso(d);s=s.replace(m[0],"")}
+  return[s,due]}
+ const lines=$("bText").value.split(/\n+/).map(s=>s.replace(/^[-*•\u2022\s\[\]x]+/,"").trim()).filter(s=>s.length>1);
+ PENDING=lines.map(l=>{
+  let cat=$("bCat").value,pin="",due="",m;
+  if(/!!/.test(l)){pin="P1";l=l.replace(/!!/g,"")}
+  if(m=l.match(/#(\w+)/)){const c=CT[m[1].toLowerCase()];if(c){cat=c;l=l.replace(m[0],"")}}
+  [l,due]=grabDate(l);
+  return{title:l.replace(/\s+/g," ").trim().slice(0,220),cat:cat,due:due,pin:pin}});
+ const p=$("bPrev");p.textContent="";
+ if(!PENDING.length){p.appendChild(el("div","empty","Nothing to read in there yet."));
+  $("bCommit").style.display="none";return}
+ p.appendChild(el("div","sub",PENDING.length+" items found. Uncheck anything you don't want."));
+ PENDING.forEach((it,i)=>{const r=el("label","row2");r.style.padding="3px 0";r.style.alignItems="center";
+  const c=document.createElement("input");c.type="checkbox";c.checked=true;c.dataset.i=i;
+  r.appendChild(c);r.appendChild(el("span",null,it.title));
+  r.appendChild(pill(it.cat));
+  if(it.due)r.appendChild(pill("due "+it.due,"due"));
+  if(it.pin)r.appendChild(pill("pinned"));
+  p.appendChild(r)});
+ $("bCommit").style.display="inline-block"};
+$("bCommit").onclick=async()=>{
+ const keep=[...$("bPrev").querySelectorAll("input:checked")].map(c=>PENDING[+c.dataset.i]);
+ let n=TASKS.filter(x=>x.id.startsWith("B-")).length;
+ keep.forEach(it=>{n++;TASKS.push({id:"B-"+String(n).padStart(3,"0"),title:it.title,cat:it.cat,proj:"Inbox",
+  folder:"",parent:"",deps:"",pin:"",status:"Open",start:"",due:it.due||"",done:"",assignee:"",people:"",
+  src:"Batch upload",raw:it.title,xref:"",verify:true,notes:"From a pasted batch — check the details.",
+  tier:"",cluster:"",effort:"",touched:nowISO(),rawStatus:""})});
+ await save();$("dBatch").close();render();toast(keep.length+" added, flagged to review")};
+
+// export / import
+function dl(name,text,type){const b=new Blob([text],{type:type});const u=URL.createObjectURL(b);
+ const a=document.createElement("a");a.href=u;a.download=name;a.click();URL.revokeObjectURL(u)}
+$("bExp").onclick=async()=>{META.lastExport=TODAY.toISOString().slice(0,10);await save();
+ dl("launch-board-"+BUILD+"-backup.json",JSON.stringify({build:BUILD,exported:new Date().toISOString(),tasks:TASKS,meta:META,links:LINKGROUPS},null,1),"application/json");
+ render();toast("Backup saved")};
+$("bCsv").onclick=()=>{const k=["id","title","cat","proj","tier","status","due","done","effort","pin","parent","deps","people","src","notes","raw"];
+ const esc=v=>'"'+String(v===undefined?"":v).replace(/"/g,'""')+'"';
+ dl("launch-board.csv",[k.join(",")].concat(TASKS.map(t=>k.map(x=>esc(t[x])).join(","))).join("\n"),"text/csv");
+ toast("CSV saved")};
+let INCOMING=null;
+$("bImp").onclick=()=>$("file").click();
+$("file").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+ r.onload=()=>{try{const d=JSON.parse(r.result);
+  stageImport(d)}catch(x){toast("That file isn't a Launch Board backup")}};
+ r.readAsText(f);e.target.value=""};
+function stageImport(d){
+ if(!d||!d.tasks||!Array.isArray(d.tasks)){toast("That isn't a Launch Board backup");return false}
+ INCOMING=d;
+ $("impInfo").textContent="That file holds "+d.tasks.length+" items"+(d.build?" from build "+d.build:"")+
+  ". You have "+TASKS.length+" now"+(d.build&&d.build!==BUILD?" on build "+BUILD+".":".");
+ $("dImp").showModal();return true}
+$("bPaste").onclick=()=>{$("pText").value="";$("dPaste").showModal()};
+$("pCancel").onclick=()=>$("dPaste").close();
+$("pGo").onclick=()=>{try{const d=JSON.parse($("pText").value);
+ if(stageImport(d))$("dPaste").close()}catch(e){toast("That isn't valid JSON")}};
+$("iCancel").onclick=()=>$("dImp").close();
+$("iReplace").onclick=async()=>{TASKS=INCOMING.tasks;META=INCOMING.meta||META;if(INCOMING.links)LINKGROUPS=INCOMING.links;await save();
+ $("dImp").close();renderLinks();render();toast("Replaced")};
+$("iMerge").onclick=async()=>{const have=new Set(TASKS.map(t=>t.id));
+ let n=0;INCOMING.tasks.forEach(t=>{if(!have.has(t.id)){TASKS.push(t);n++}});
+ await save();$("dImp").close();render();toast(n+" new items merged")};
+
+// links
+function renderLinks(){const L=$("links");L.textContent="";
+ if(!LINKGROUPS.length){L.appendChild(el("div","empty","Your Launch Pad links arrive with your backup. Hit Import below."));return}
+ LINKGROUPS.forEach(g=>{L.appendChild(el("h3","lg",g.name));
+  const gr=el("div","lnkgrid");
+  g.items.forEach(i=>{const a=el("a","lnk",i.l);a.href=i.u;a.target="_blank";a.rel="noopener";gr.appendChild(a)});
+  L.appendChild(gr)})}
+
+$("bld").textContent=BUILD;
+
+// ---------------- encrypted GitHub sync ----------------
+const SKEY="launchboard-sync";
+let SYNC={repo:"",token:"",pass:"",lastSync:null,path:"board.json"};
+let syncTimer=null, syncing=false, lastMsg="";
+try{const raw=localStorage.getItem(SKEY);if(raw)SYNC=Object.assign(SYNC,JSON.parse(raw))}catch(e){}
+const cfgd=()=>!!(SYNC.repo&&SYNC.token&&SYNC.pass);
+function saveCfg(){localStorage.setItem(SKEY,JSON.stringify(SYNC))}
+function b64(buf){let s="";const b=new Uint8Array(buf);for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s)}
+function unb64(str){const s=atob(str),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a}
+
+async function keyFrom(pass,salt){
+ const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(pass),"PBKDF2",false,["deriveKey"]);
+ return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:250000,hash:"SHA-256"},
+  base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
+async function seal(obj){
+ const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+ const k=await keyFrom(SYNC.pass,salt);
+ const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv:iv},k,new TextEncoder().encode(JSON.stringify(obj)));
+ return JSON.stringify({v:1,salt:b64(salt),iv:b64(iv),data:b64(ct)})}
+async function open_(txt){
+ const p=JSON.parse(txt);
+ const k=await keyFrom(SYNC.pass,unb64(p.salt));
+ const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:unb64(p.iv)},k,unb64(p.data));
+ return JSON.parse(new TextDecoder().decode(pt))}
+
+async function gh(method,body,sha){
+ const url="https://api.github.com/repos/"+SYNC.repo+"/contents/"+SYNC.path;
+ const opt={method:method,headers:{Authorization:"Bearer "+SYNC.token,
+  Accept:"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"}};
+ if(method==="PUT"){opt.headers["Content-Type"]="application/json";
+  opt.body=JSON.stringify({message:"board "+new Date().toISOString(),
+   content:btoa(unescape(encodeURIComponent(body))),sha:sha||undefined})}
+ const r=await fetch(url,opt);
+ if(r.status===404&&method==="GET")return null;
+ if(!r.ok)throw new Error("GitHub "+r.status+" "+(r.status===401?"— token rejected":r.status===403?"— token lacks Contents write":r.status===404?"— repo or path not found":""));
+ return r.json()}
+
+function mergeRows(local,remote){
+ const by={},conf=[];
+ remote.forEach(r=>by[r.id]=r);
+ local.forEach(l=>{
+  const r=by[l.id];
+  if(!r){by[l.id]=l;return}
+  const lt=pt(l.touched)||new Date(0), rt=pt(r.touched)||new Date(0);
+  const since=SYNC.lastSync?new Date(SYNC.lastSync):new Date(0);
+  if(lt>since&&rt>since&&JSON.stringify(l)!==JSON.stringify(r))conf.push(l.title);
+  by[l.id]=lt>=rt?l:r});
+ return{rows:Object.values(by),conflicts:conf}}
+
+function setBar(msg){lastMsg=msg;const b=$("syncbar");if(!b)return;b.textContent=msg}
+function queueSync(){if(!cfgd())return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>doSync(true),2500)}
+
+async function doSync(quiet){
+ if(!cfgd()){$("dSync").showModal();return}
+ if(syncing)return; syncing=true; setBar("Syncing…");
+ try{
+  const cur=await gh("GET");
+  let remote=null,sha=null;
+  if(cur){sha=cur.sha;
+   try{remote=await open_(decodeURIComponent(escape(atob(cur.content.replace(/\n/g,"")))))}
+   catch(e){throw new Error("Could not decrypt — passphrase differs from the device that wrote this")}}
+  let out=TASKS,conflicts=[];
+  if(remote&&remote.tasks){const m=mergeRows(TASKS,remote.tasks);out=m.rows;conflicts=m.conflicts;
+   if(remote.links&&remote.links.length&&!LINKGROUPS.length)LINKGROUPS=remote.links}
+  TASKS=out;
+  const payload=await seal({build:BUILD,tasks:TASKS,meta:META,links:LINKGROUPS});
+  await gh("PUT",payload,sha);
+  SYNC.lastSync=new Date().toISOString(); saveCfg();
+  localStorage.setItem(KEY,JSON.stringify({tasks:TASKS,meta:META,links:LINKGROUPS}));
+  renderLinks(); render();
+  setBar("Synced "+new Date().toLocaleTimeString()+(conflicts.length?" · "+conflicts.length+" row(s) resolved to the newer edit":""));
+  if(conflicts.length&&!quiet)toast(conflicts.length+" conflict(s) — newer edit kept");
+ }catch(e){setBar("Sync failed — "+e.message);if(!quiet)toast(e.message)}
+ syncing=false}
+
+$("bSync").onclick=()=>doSync(false);
+$("bSyncCfg").onclick=()=>{$("sRepo").value=SYNC.repo;$("sTok").value=SYNC.token;
+ $("sPass").value=SYNC.pass;$("dSync").showModal()};
+$("sClose").onclick=()=>$("dSync").close();
+$("sSave").onclick=()=>{SYNC.repo=$("sRepo").value.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\.git$/,"");
+ SYNC.token=$("sTok").value.trim();SYNC.pass=$("sPass").value;saveCfg();$("dSync").close();
+ toast("Saved on this device");doSync(false)};
+$("sTest").onclick=async()=>{const save={...SYNC};
+ SYNC.repo=$("sRepo").value.trim();SYNC.token=$("sTok").value.trim();
+ try{const r=await gh("GET");toast(r?"Connected — existing board found":"Connected — repo is empty, first sync will create it")}
+ catch(e){toast(e.message)}finally{SYNC.repo=save.repo;SYNC.token=save.token}};
+window.addEventListener("focus",()=>{if(cfgd())doSync(true)});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&cfgd())doSync(true)});
+setTimeout(()=>{setBar(cfgd()?(SYNC.lastSync?"Last synced "+new Date(SYNC.lastSync).toLocaleString():"Sync configured — hit Sync"):"Sync not set up — this device only");
+ if(cfgd())doSync(true)},600);
+
+load().then(()=>{renderLinks();TASKS.forEach(t=>{if(kids(t.id).length)COLL.add(t.id)});render()});
+</script></body></html>
