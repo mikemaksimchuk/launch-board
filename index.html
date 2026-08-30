@@ -528,22 +528,57 @@ function heatOf(t){
  if(!HEATC)HEATC=new Map();
  if(!HEATC.has(t.id))HEATC.set(t.id,heat(t).n);
  return HEATC.get(t.id)}
+
+// A parent inherits its hottest / soonest descendant, so a urgent subtask can't be
+// buried under a calm parent. Without this the visible column of heat numbers
+// jumps around and the sort looks broken even though the roots are ordered.
+let ROLLC=null;
+function rollup(t,k){
+ if(!ROLLC)ROLLC=new Map();
+ const ck=k+"|"+t.id;
+ if(ROLLC.has(ck))return ROLLC.get(ck);
+ let v;
+ const ds=descend(t.id).filter(x=>x.status!=="Done"&&x.status!=="Archived");
+ if(k==="heat"){v=heatOf(t);ds.forEach(x=>{v=Math.max(v,heatOf(x))})}
+ else if(k==="due"){
+  v=pd(t.due)?pd(t.due).getTime():Infinity;
+  ds.forEach(x=>{const d=pd(x.due);if(d)v=Math.min(v,d.getTime())})}
+ else if(k==="prio"){
+  const rk=x=>{const i=PRIOS.indexOf(str(x.prio));return i<0?99:i};
+  v=rk(t);ds.forEach(x=>{v=Math.min(v,rk(x))})}
+ else v=null;
+ ROLLC.set(ck,v);return v}
+
 const str=v=>String(v==null?"":v);
-function cmp(k){return(a,b)=>{
- let r=0;
- if(k==="heat")r=heatOf(b)-heatOf(a);
- else if(k==="due"){const x=pd(a.due),y=pd(b.due);
-  r=(!x&&!y)?0:!x?1:!y?-1:x-y}
- else if(k==="title")r=str(a.title).localeCompare(str(b.title));
- else if(k==="cat"){const i=CATORDER.indexOf(str(a.cat)),j=CATORDER.indexOf(str(b.cat));
-  r=(i<0?99:i)-(j<0?99:j)}
- else if(k==="proj")r=str(a.proj).localeCompare(str(b.proj));
- else if(k==="prio")r=(PRIOS.indexOf(str(a.prio))+99)%99-(PRIOS.indexOf(str(b.prio))+99)%99;
- else if(k==="tier")r=(TIERS.indexOf(str(a.tier))+99)%99-(TIERS.indexOf(str(b.tier))+99)%99;
- else if(k==="new"||k==="old"){const x=pt(a.created)||new Date(0),y=pt(b.created)||new Date(0);
-  r=k==="new"?y-x:x-y}
- // never return 0 for different rows, or equal keys shuffle unpredictably
- return r||str(a.title).localeCompare(str(b.title))||str(a.id).localeCompare(str(b.id))}}
+/** Raw single-key ranking. Returns 0 on a genuine tie so callers can chain. */
+function rank(k,a,b,roll){
+ if(!k)return 0;
+ if(k==="heat")return roll?rollup(b,"heat")-rollup(a,"heat"):heatOf(b)-heatOf(a);
+ if(k==="due"){
+  if(roll)return rollup(a,"due")-rollup(b,"due");
+  const x=pd(a.due),y=pd(b.due);
+  return(!x&&!y)?0:!x?1:!y?-1:x-y}
+ if(k==="title")return str(a.title).localeCompare(str(b.title));
+ if(k==="cat"){const i=CATORDER.indexOf(str(a.cat)),j=CATORDER.indexOf(str(b.cat));
+  return(i<0?99:i)-(j<0?99:j)}
+ if(k==="proj")return str(a.proj).localeCompare(str(b.proj));
+ if(k==="prio")return roll?rollup(a,"prio")-rollup(b,"prio")
+  :((PRIOS.indexOf(str(a.prio))+99)%99)-((PRIOS.indexOf(str(b.prio))+99)%99);
+ if(k==="tier")return((TIERS.indexOf(str(a.tier))+99)%99)-((TIERS.indexOf(str(b.tier))+99)%99);
+ if(k==="new"||k==="old"){const x=pt(a.created)||new Date(0),y=pt(b.created)||new Date(0);
+  return k==="new"?y-x:x-y}
+ return 0}
+
+/**
+ * One comparator, one pass: pinned first, then the chosen sort, then the
+ * secondary sort, then a stable tiebreak. `roll` lifts parents by their
+ * descendants and is only used for the top-level rows.
+ */
+function cmp(k1,k2,roll){
+ return(a,b)=> ((b.pin?1:0)-(a.pin?1:0))
+   || rank(k1,a,b,roll) || rank(k2,a,b,roll)
+   || str(a.title).localeCompare(str(b.title))
+   || str(a.id).localeCompare(str(b.id))}
 
 // Can src be nested under tgt without creating a loop?
 function canNest(srcId,tgtId){
@@ -619,10 +654,18 @@ function taskEl(t,isKid){
  if(OPEN.has(t.id))mid.appendChild(detailEl(t));
  d.appendChild(mid);
  const h=heat(t),hw=el("div","heat");
- hw.appendChild(el("div","heatn",String(h.n)));
+ // A parent sorts on its hottest descendant, so show that number here too —
+ // otherwise the visible column doesn't match the order and the sort looks wrong.
+ const rolled=isKid?h.n:rollup(t,"heat");
+ const inherited=rolled>h.n;
+ const shown=inherited?rolled:h.n;
+ const num=el("div","heatn",String(shown)+(inherited?"\u2191":""));
+ if(inherited)num.title="Sorting on a nested item at "+rolled+". This one is "+h.n+" on its own.";
+ hw.appendChild(num);
  const bar=el("div","heatb"),fil=el("div","heatf");
- fil.style.width=h.p+"%";fil.style.background=heatColor(h.n);bar.appendChild(fil);hw.appendChild(bar);
- if(h.why)hw.appendChild(el("div","why",h.why));
+ fil.style.width=shown+"%";fil.style.background=heatColor(shown);bar.appendChild(fil);hw.appendChild(bar);
+ const why=inherited?"via nested item":h.why;
+ if(why)hw.appendChild(el("div","why",why));
  d.appendChild(hw);
  return d
 }
@@ -702,7 +745,7 @@ function detailEl(t){
 }
 function render(){
  TODAY=midnight();          // a session left open overnight used to keep yesterday's date
- HEATC=null;                // recompute heat once per row, per render
+ HEATC=null; ROLLC=null;    // recompute heat and roll-ups once per render
  $("tag").textContent=alive().length+" items · "+alive().filter(t=>t.status!=="Done"&&t.status!=="Archived").length+" open";
  const live=alive().filter(t=>t.status!=="Done");
  const S=[["all","Everything",live.length],["hot","Running hot",live.filter(t=>heat(t).n>=60).length],
@@ -733,12 +776,11 @@ function render(){
  const pool=alive().filter(t=>t.status!=="Done"&&matches(t));
  const ids=new Set(pool.map(t=>t.id));
  let roots=pool.filter(t=>!t.parent||!ids.has(t.parent));
- roots.sort(cmp(F.s1));if(F.s2)roots=roots.sort((a,b)=>cmp(F.s1)(a,b)||cmp(F.s2)(a,b));
- roots.sort((a,b)=>(b.pin?1:0)-(a.pin?1:0));
+ roots.sort(cmp(F.s1,F.s2,true));
  const L=$("list");L.textContent="";
  if(!roots.length){L.appendChild(el("div","empty",alive().length?"Nothing matches. Reset the filters, or add a task.":"Empty board. Hit Import at the bottom and choose your backup file."));}
  roots.forEach(t=>{L.appendChild(taskEl(t,false));
-  if(!COLL.has(t.id))kids(t.id).filter(k=>pool.includes(k)).sort(cmp(F.s1))
+  if(!COLL.has(t.id))kids(t.id).filter(k=>pool.includes(k)).sort(cmp(F.s1,F.s2,false))
    .forEach(k=>L.appendChild(taskEl(k,true)))});
  const dn=alive().filter(t=>t.status==="Done").sort((a,b)=>(b.done||"").localeCompare(a.done||""));
  const D=$("done");D.textContent="";
