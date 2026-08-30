@@ -95,6 +95,10 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--a11yOrange);outl
 .frogb:hover{opacity:.85;filter:none;border-color:var(--green)}
 .frogb.on{opacity:1;filter:none;border-color:#8fa326;background:#f2f7db}
 .pill.frogp{border-color:#8fa326;color:#5b6b12;background:#f2f7db}
+.pill.prioHigh{border-color:#C62828;color:#B3261E;background:#FCE8E6;font-weight:700}
+.pill.prioMedium{border-color:#a84c2a;color:#a84c2a;background:#fff4e7}
+.pill.prioLow{border-color:#9fc9d1;color:#1c666f;background:#eef8f9}
+.pill.recur{border-color:#2f8d98;color:#1c666f;background:#eef8f9}
 .task.stale::after{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;
  background:repeating-linear-gradient(135deg,#e8a33d 0 4px,transparent 4px 8px);pointer-events:none}
 .task{position:relative}
@@ -201,17 +205,20 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
  <div class="bar">
   <div class="chips" id="cats"></div>
   <div class="row2">
-   <input type="search" id="q" placeholder="Search titles, notes, people…" style="flex:1;min-width:170px">
+   <input type="search" id="q" placeholder="Search titles, notes, projects…" style="flex:1;min-width:170px">
    <select id="fTier"><option value="">All tiers</option></select>
    <select id="fStatus"><option value="">All statuses</option></select>
+   <select id="fProj"><option value="">All projects</option></select>
    <select id="sort1"><option value="heat">Sort: Heat</option><option value="due">Sort: Due date</option>
     <option value="new">Sort: Newest added</option><option value="old">Sort: Oldest added</option>
     <option value="title">Sort: Title</option><option value="cat">Sort: Category</option>
+    <option value="prio">Sort: Priority</option><option value="proj">Sort: Project</option>
     <option value="tier">Sort: Tier</option></select>
    <select id="sort2"><option value="">Then: —</option><option value="heat">Then: Heat</option>
     <option value="due">Then: Due date</option><option value="new">Then: Newest added</option>
     <option value="old">Then: Oldest added</option><option value="title">Then: Title</option>
-    <option value="cat">Then: Category</option></select>
+    <option value="cat">Then: Category</option><option value="prio">Then: Priority</option>
+    <option value="proj">Then: Project</option></select>
    <button id="bClear">Reset</button>
   </div>
  </div>
@@ -230,12 +237,29 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
    <button id="bImp">Import backup</button>
    <button id="bSync">Sync</button>
    <button id="bSyncCfg">Sync setup</button>
+   <button id="bClearDone">Delete all completed</button>
    <button id="bPaste">Paste backup</button>
   </div>
  </footer>
  <div id="syncbar" style="font-size:11.5px;color:var(--lightGray);font-style:italic;margin-top:8px"></div>
  <div id="nudge"></div>
 </div>
+<dialog id="dRecur"><div class="dlg">
+ <h3>Repeat this task</h3>
+ <div class="sub" id="rWhat"></div>
+ <div class="grid2">
+  <label><span class="lbl">How often</span><select id="rKind">
+   <option>Weekly</option><option>Every 2 weeks</option><option>Every 4 weeks</option><option>Monthly</option>
+  </select></label>
+  <label><span class="lbl">For how long</span><select id="rMonths">
+   <option value="2">2 months</option><option value="4" selected>4 months</option>
+   <option value="6">6 months</option><option value="12">12 months</option>
+  </select></label>
+ </div>
+ <div class="sub">Occurrences are created now, starting after this task's due date. Completing the
+  final one prompts you to extend rather than letting the series quietly end.</div>
+ <div class="acts"><button id="rCancel">Cancel</button><button id="rSave" class="pri">Create occurrences</button></div>
+</div></dialog>
 <input type="file" id="file" accept=".json" style="display:none">
 <dialog id="dSync"><div class="dlg"><h3>Sync setup</h3>
  <div class="sub">Your board is encrypted on this device before it leaves. GitHub only ever stores an unreadable blob.
@@ -266,8 +290,7 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
   <label><span class="lbl">Due</span><input type="date" id="aDue"></label>
   <label><span class="lbl">Effort</span><select id="aEffort"></select></label>
   <label><span class="lbl">Nest under (ID)</span><input type="text" id="aParent" placeholder="e.g. T-001"></label>
-  <label><span class="lbl">Depends on (IDs)</span><input type="text" id="aDeps" placeholder="comma separated"></label>
-  <label><span class="lbl">People</span><input type="text" id="aPeople"></label>
+  <label><span class="lbl">Priority</span><select id="aPrio"></select></label>
   <label class="full"><span class="lbl">Notes</span><textarea id="aNotes" rows="2"></textarea></label>
  </div>
  <div class="acts"><button id="aCancel">Cancel</button><button id="aSave" class="pri">Save task</button></div>
@@ -306,15 +329,20 @@ const LOGO="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAA
 const TIERS=["Primary","Secondary","Episodic","Not Finalized"];
 const STATUSES=["Open","In Progress","Blocked","Scheduled","Future Work","Paused","Done","Archived"];
 const EFFORTS=["High","Medium","Low"];
+const PRIOS=["High","Medium","Low"];
+// Heat weights. Priority and effort dominate, then timing, then tier and staleness.
+const PRIOW={"High":28,"Medium":16,"Low":6,"":12};
+const EFFW={"High":14,"Medium":8,"Low":3,"":6,"XL":14,"L":11,"M":8,"S":3,"XS":2};
 // Run-length in days, used by heat() to work out when a task must start.
 // High/Medium/Low are the scale going forward; XS-XL stay so legacy rows keep scoring.
 const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"XL":4};
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
-const TODAY=new Date("2026-08-26T00:00:00");
+function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
+let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
 const BUILD="2026.08.26-1";
 const KEY="launchboard-"+BUILD;
 let LEGACY=null;
-let TASKS=[],META={lastExport:null,captured:[]},COLL=new Set(),F={cats:new Set(),tier:"",status:"",q:"",s1:"heat",s2:"",stat:""},OPEN=new Set(),DRAG=null;
+let TASKS=[],META={lastExport:null,captured:[]},COLL=new Set(),F={cats:new Set(),tier:"",status:"",proj:"",q:"",s1:"heat",s2:"",stat:""},OPEN=new Set(),DRAG=null;
 
 const $=id=>document.getElementById(id);
 const days=(a,b)=>Math.round((a-b)/864e5);
@@ -329,30 +357,60 @@ function staleDays(t){
  const live=!!pd(t.due)||t.status==="In Progress";
  if(!live)return 0;
  return Math.max(0,days(TODAY,pt(t.touched)||TODAY))}
-function blockCount(id){return TASKS.filter(t=>(t.deps||"").split(/[,\s]+/).includes(id)).length}
+
+// An explicit start date wins. Failing that, derive one by backing the effort's
+// run length off the due date — and label it as derived so it never reads as a
+// real start date the way the old version did.
+function startOf(t){
+ const ex=pd(t.start);
+ if(ex)return{d:ex,derived:false};
+ const due=pd(t.due);
+ if(!due)return{d:null,derived:false};
+ const run=EFFORT[t.effort]!==undefined?EFFORT[t.effort]:1;
+ const d=new Date(due);d.setDate(d.getDate()-Math.ceil(run));
+ return{d:d,derived:true}}
 
 function heat(t){
  if(t.status==="Done"||t.status==="Archived")return{n:0,p:0,why:""};
  if(t.status==="Paused")return{n:0,p:0,why:"paused"};
- let s=0,why=[];
- const due=pd(t.due);
+ const why=[];
+ const due=pd(t.due), st=startOf(t);
+
+ // timing, 0-40
+ let timing=0;
  if(due){
-  const run=t.effort?EFFORT[t.effort]:Math.min(5,1+.5*kids(t.id).length);
-  const dts=days(due,TODAY)-run, dtd=days(due,TODAY);
-  if(dts<=0)s+=45; else s+=Math.max(0,45*(1-dts/30));
-  s+=dtd<=0?15:Math.max(0,15*(1-dtd/10));
+  const dtd=days(due,TODAY);
+  timing=dtd<0?40:dtd===0?38:Math.max(0,40*(1-dtd/21));
   if(dtd<0)why.push(Math.abs(dtd)+"d overdue");
-  else if(dtd<=2)why.push(dtd===0?"due today":dtd===1?"due tomorrow":"due in 2d");
-  else if(dts<=0)why.push("start now");
-  else if(dts<=7)why.push(dts+"d to start");
+  else if(dtd===0)why.push("due today");
+  else if(dtd===1)why.push("due tomorrow");
+  else if(dtd<=7)why.push("due in "+dtd+"d");
+ }else if(st.d){
+  const dst=days(st.d,TODAY);
+  timing=dst<=0?26:Math.max(0,26*(1-dst/21));
  }
- s+=TIERW[t.tier]!==undefined?TIERW[t.tier]:6;
+ if(st.d){
+  const dst=days(st.d,TODAY);
+  if(dst<=0&&(!due||days(due,TODAY)>1))why.push(st.derived?"should be underway":"started");
+  else if(dst>0&&dst<=7)why.push((st.derived?"start in ":"starts in ")+dst+"d");
+ }
+
+ const prio=PRIOW[t.prio]!==undefined?PRIOW[t.prio]:PRIOW[""];
+ const eff =EFFW[t.effort]!==undefined?EFFW[t.effort]:EFFW[""];
+ if(t.prio==="High")why.push("high priority");
+ if(t.effort==="High")why.push("big job");
+
+ const tier=TIERW[t.tier]!==undefined?TIERW[t.tier]:6;
  if(t.tier==="Primary")why.push("primary");
- const live=!!due||t.status==="In Progress";
- if(live){const st=days(TODAY,pt(t.touched)||TODAY);const v=Math.min(15,st/21*15);s+=v;if(v>7)why.push("gone quiet")}
- const b=blockCount(t.id);
- if(b){s+=Math.min(10,b*4);why.push("blocks "+b)}
- const n=Math.round(Math.min(100,s));
+
+ let stale=0;
+ if(!!due||t.status==="In Progress"){
+  const q=days(TODAY,pt(t.touched)||TODAY);
+  stale=Math.min(8,q/21*8);
+  if(stale>4)why.push("gone quiet");
+ }
+
+ const n=Math.round(Math.min(100,timing+prio+eff+tier*0.66+stale));
  return{n:n,p:n,why:why.slice(0,2).join(" · ")}
 }
 function heatColor(n){return n>=70?"#C62828":n>=45?"#E65100":n>=25?"#f7941e":"#2f8d98"}
@@ -375,10 +433,74 @@ function nowISO(){return new Date().toISOString()}
 function pt(v){if(!v)return null;const d=new Date(v.length<=10?v+"T00:00:00":v);return isNaN(d)?null:d}
 function touch(t){t.touched=nowISO()}
 
+// ---------------- recurrence ----------------
+const RECURS={"Weekly":7,"Every 2 weeks":14,"Every 4 weeks":28,"Monthly":0};  // 0 = calendar month
+function stepDate(d,kind,n){
+ const x=new Date(d);
+ if(kind==="Monthly"){
+  // setMonth overflows short months — Jan 31 + 1 lands on Mar 3 and the series
+  // then drifts. Clamp to the last valid day of the target month instead.
+  const day=x.getDate();
+  x.setDate(1);x.setMonth(x.getMonth()+n);
+  x.setDate(Math.min(day,new Date(x.getFullYear(),x.getMonth()+1,0).getDate()));
+ }else x.setDate(x.getDate()+RECURS[kind]*n);
+ return x}
+const isoOf=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+function seriesOf(id){return alive().filter(t=>t.series===id)}
+
+/** Build occurrences from `from` (exclusive) out to `months` ahead. */
+function growSeries(seed,kind,from,months){
+ const stop=new Date(from);stop.setMonth(stop.getMonth()+months);
+ const made=[];
+ let n=1,guard=0;
+ while(guard++<200){
+  const d=stepDate(from,kind,n);
+  if(d>stop)break;
+  made.push(Object.assign({},seed,{
+   id:"R-"+Math.random().toString(36).slice(2,8),
+   due:isoOf(d),start:"",status:"Open",done:"",frog:false,verify:false,
+   parent:"",created:nowISO(),touched:nowISO(),deleted:undefined,
+   seriesEnd:false,src:"Recurring — "+kind.toLowerCase()}));
+  n++}
+ if(made.length)made[made.length-1].seriesEnd=true;
+ return made}
+
+async function makeRecurring(t,kind,months){
+ const sid=t.series||("S-"+Math.random().toString(36).slice(2,8));
+ const from=pd(t.due)||TODAY;
+ if(!t.due)t.due=isoOf(TODAY);
+ t.series=sid;t.recur=kind;t.seriesEnd=false;touch(t);
+ const seed=Object.assign({},t);delete seed.deleted;
+ const made=growSeries(seed,kind,from,months).map(x=>Object.assign(x,{series:sid,recur:kind}));
+ made.forEach(x=>TASKS.push(x));
+ await save();render();
+ toast(made.length+" more "+kind.toLowerCase()+" occurrence"+(made.length===1?"":"s")+" added")}
+
+async function extendSeries(sid,months){
+ const set=seriesOf(sid);
+ if(!set.length)return;
+ const kind=set[0].recur||"Weekly";
+ let last=set[0],lastD=pd(set[0].due)||TODAY;
+ set.forEach(x=>{const d=pd(x.due);if(d&&d>lastD){lastD=d;last=x}});
+ set.forEach(x=>{if(x.seriesEnd){x.seriesEnd=false;touch(x)}});
+ const seed=Object.assign({},last);delete seed.deleted;
+ const made=growSeries(seed,kind,lastD,months).map(x=>Object.assign(x,{series:sid,recur:kind}));
+ made.forEach(x=>TASKS.push(x));
+ RECUR_DUE=null;
+ await save();render();
+ toast("Extended "+months+" more months — "+made.length+" added")}
+
+let RECUR_DUE=null;   // series that just ran out, surfaced as a banner
+
 async function complete(t,val){
  const on=val===undefined?t.status!=="Done":val;
  const set=[t].concat(descend(t.id));
  set.forEach(x=>{x.status=on?"Done":"Open";x.done=on?new Date().toISOString().slice(0,10):"";touch(x)});
+ // last of a recurring series — warn before it disappears from the board
+ if(on&&t.series&&t.seriesEnd){
+  const remaining=seriesOf(t.series).filter(x=>x.status!=="Done"&&x.id!==t.id).length;
+  if(!remaining)RECUR_DUE={id:t.series,title:t.title,kind:t.recur||"Weekly"};
+ }
  await save();render();
  const n=set.length-1;
  toast(on?(n?`Done — and ${n} nested item${n>1?"s":""}`:"Done"):"Reopened")
@@ -388,6 +510,7 @@ function matches(t){
  if(F.cats.size&&!F.cats.has(t.cat))return false;
  if(F.tier&&t.tier!==F.tier)return false;
  if(F.status&&t.status!==F.status)return false;
+ if(F.proj&&(t.proj||"")!==F.proj)return false;
  if(F.stat==="hot"&&heat(t).n<60)return false;
  if(F.stat==="overdue"){const d=pd(t.due);if(!d||d>=TODAY)return false}
  if(F.stat==="verify"&&!t.verify)return false;
@@ -395,19 +518,32 @@ function matches(t){
  if(F.stat==="dupe"&&!t.cluster)return false;
  if(F.stat==="stale"&&staleDays(t)<14)return false;
  if(F.stat==="soon"){const d=pd(t.due);if(!d||days(d,TODAY)>7)return false}
- if(F.q){const s=(t.title+" "+t.notes+" "+t.people+" "+t.proj+" "+t.raw).toLowerCase();
+ if(F.q){const s=[t.title,t.notes,t.proj,t.raw].map(v=>v||"").join(" ").toLowerCase();
   if(!s.includes(F.q.toLowerCase()))return false}
  return true
 }
+const CATORDER=Object.keys(CATS);
+let HEATC=null;                       // per-render cache; heat() is called O(n log n) times
+function heatOf(t){
+ if(!HEATC)HEATC=new Map();
+ if(!HEATC.has(t.id))HEATC.set(t.id,heat(t).n);
+ return HEATC.get(t.id)}
+const str=v=>String(v==null?"":v);
 function cmp(k){return(a,b)=>{
- if(k==="heat")return heat(b).n-heat(a).n;
- if(k==="due"){const x=pd(a.due),y=pd(b.due);if(!x&&!y)return 0;if(!x)return 1;if(!y)return -1;return x-y}
- if(k==="title")return a.title.localeCompare(b.title);
- if(k==="cat")return a.cat.localeCompare(b.cat);
- if(k==="tier")return(TIERS.indexOf(a.tier)+9)%9-(TIERS.indexOf(b.tier)+9)%9;
- if(k==="new"||k==="old"){const x=pt(a.created)||new Date(0),y=pt(b.created)||new Date(0);
-  return k==="new"?y-x:x-y}
- return 0}}
+ let r=0;
+ if(k==="heat")r=heatOf(b)-heatOf(a);
+ else if(k==="due"){const x=pd(a.due),y=pd(b.due);
+  r=(!x&&!y)?0:!x?1:!y?-1:x-y}
+ else if(k==="title")r=str(a.title).localeCompare(str(b.title));
+ else if(k==="cat"){const i=CATORDER.indexOf(str(a.cat)),j=CATORDER.indexOf(str(b.cat));
+  r=(i<0?99:i)-(j<0?99:j)}
+ else if(k==="proj")r=str(a.proj).localeCompare(str(b.proj));
+ else if(k==="prio")r=(PRIOS.indexOf(str(a.prio))+99)%99-(PRIOS.indexOf(str(b.prio))+99)%99;
+ else if(k==="tier")r=(TIERS.indexOf(str(a.tier))+99)%99-(TIERS.indexOf(str(b.tier))+99)%99;
+ else if(k==="new"||k==="old"){const x=pt(a.created)||new Date(0),y=pt(b.created)||new Date(0);
+  r=k==="new"?y-x:x-y}
+ // never return 0 for different rows, or equal keys shuffle unpredictably
+ return r||str(a.title).localeCompare(str(b.title))||str(a.id).localeCompare(str(b.id))}}
 
 // Can src be nested under tgt without creating a loop?
 function canNest(srcId,tgtId){
@@ -473,6 +609,8 @@ function taskEl(t,isKid){
  if(due)m.appendChild(pill("due "+t.due,due<TODAY?"od":"due"));
  if(t.cluster)m.appendChild(pill("⧉ "+t.cluster+" ("+(t.clusterN||"")+")","cl"));
  if(t.effort)m.appendChild(pill(t.effort));
+ if(t.prio)m.appendChild(pill("P: "+t.prio,"prio"+t.prio));
+ if(t.series)m.appendChild(pill("↻ "+(t.recur||"recurring")+(t.seriesEnd?" · last":""),"recur"));
  if(t.frog)m.appendChild(pill("🐸 frog","frogp"));
  if(t.verify)m.appendChild(pill("verify","vf"));
  if(isStale)m.appendChild(pill("◷ "+sd+" days quiet","stale"+(sd>=30?" bad":"")));
@@ -497,7 +635,7 @@ function detailEl(t){
   f.appendChild(el("div","k",k));f.appendChild(node);w.appendChild(f);return f};
  const txt=(k,key,ph,full)=>{const i=document.createElement("input");i.type="text";
   i.value=t[key]||"";i.placeholder=ph||"";i.style.width="100%";
-  i.onchange=async()=>{t[key]=i.value;await commit(key==="title"||key==="parent"||key==="deps")};
+  i.onchange=async()=>{t[key]=i.value;await commit(key==="title"||key==="parent")};
   fld(k,i,full)};
  const dt=(k,key)=>{const i=document.createElement("input");i.type="date";i.value=t[key]||"";
   i.style.width="100%";i.onchange=async()=>{t[key]=i.value;await commit(true)};fld(k,i)};
@@ -518,9 +656,8 @@ function detailEl(t){
  sel("Status","status",STATUSES);
  dt("Start","start"); dt("Due","due");
  sel("Effort","effort",EFFORTS,true);
+ sel("Priority","prio",PRIOS,true);
  txt("Nested under (ID)","parent","e.g. T-001");
- txt("Depends on (IDs)","deps","comma separated");
- txt("People","people");
  const ta=document.createElement("textarea");ta.rows=2;ta.value=t.notes||"";ta.style.width="100%";
  ta.onchange=async()=>{t.notes=ta.value;await commit(false)};
  fld("My read",ta,true);
@@ -537,9 +674,21 @@ function detailEl(t){
  const del=el("button",null,"Delete");
  del.onclick=async()=>{if(!confirm('Delete "'+t.title+'"? Nested items stay.'))return;
   t.deleted=nowISO();t.touched=t.deleted;await save();render();toast("Deleted")};
+ const rec=el("button",null,t.series?"Recurring — reschedule":"Make recurring");
+ rec.onclick=()=>{RECUR_FOR=t.id;
+  $("rKind").value=t.recur||"Weekly";$("rMonths").value="4";
+  $("rWhat").textContent=t.title;$("dRecur").showModal()};
+ const rstop=t.series?el("button",null,"Stop recurring"):null;
+ if(rstop)rstop.onclick=async()=>{
+  const future=seriesOf(t.series).filter(x=>x.id!==t.id&&x.status!=="Done"&&(pd(x.due)||TODAY)>TODAY);
+  if(!confirm("Remove "+future.length+" future occurrence"+(future.length===1?"":"s")+"? This one stays."))return;
+  future.forEach(x=>{x.deleted=nowISO();x.touched=x.deleted});
+  t.series="";t.recur="";t.seriesEnd=false;touch(t);
+  await save();render();toast("Series stopped")};
  const frg=el("button",null,t.frog?"🐸 Remove from Frogs":"🐸 Eat the Frog");
  frg.onclick=async()=>{t.frog=!t.frog;touch(t);await save();render()};
- r.appendChild(pin);r.appendChild(frg);r.appendChild(vf);
+ r.appendChild(pin);r.appendChild(frg);r.appendChild(vf);r.appendChild(rec);
+ if(rstop)r.appendChild(rstop);
  if(unn)r.appendChild(unn);
  r.appendChild(del);
  fld("Actions",r,true);
@@ -552,6 +701,8 @@ function detailEl(t){
  return w
 }
 function render(){
+ TODAY=midnight();          // a session left open overnight used to keep yesterday's date
+ HEATC=null;                // recompute heat once per row, per render
  $("tag").textContent=alive().length+" items · "+alive().filter(t=>t.status!=="Done"&&t.status!=="Archived").length+" open";
  const live=alive().filter(t=>t.status!=="Done");
  const S=[["all","Everything",live.length],["hot","Running hot",live.filter(t=>heat(t).n>=60).length],
@@ -570,8 +721,16 @@ function render(){
   const b=el("button","chip"+(F.cats.has(c)||!F.cats.size?" on":""),c);
   b.style.borderColor=bd;b.style.color=bd;b.style.background=F.cats.has(c)?bg:"#fff";
   b.onclick=()=>{F.cats.has(c)?F.cats.delete(c):F.cats.add(c);render()};cw.appendChild(b)});
+ // project options track whichever categories are selected
+ const projPool=alive().filter(t=>t.status!=="Done"&&(!F.cats.size||F.cats.has(t.cat)));
+ const projs=[...new Set(projPool.map(t=>(t.proj||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+ if(F.proj&&projs.indexOf(F.proj)<0)F.proj="";
+ const ps=$("fProj");ps.textContent="";
+ const o0=el("option",null,projs.length?"All projects":"No projects yet");o0.value="";ps.appendChild(o0);
+ projs.forEach(v=>{const o=el("option",null,v);o.value=v;if(F.proj===v)o.selected=true;ps.appendChild(o)});
+ ps.disabled=!projs.length;
+
  const pool=alive().filter(t=>t.status!=="Done"&&matches(t));
- if(F.stat==="soon"&&F.s1==="heat")F.s1="due";
  const ids=new Set(pool.map(t=>t.id));
  let roots=pool.filter(t=>!t.parent||!ids.has(t.parent));
  roots.sort(cmp(F.s1));if(F.s2)roots=roots.sort((a,b)=>cmp(F.s1)(a,b)||cmp(F.s2)(a,b));
@@ -587,6 +746,15 @@ function render(){
  else dn.forEach(t=>D.appendChild(taskEl(t,false)));
  $("hDone").textContent="Completed ("+dn.length+") "+(D.style.display==="none"?"▸":"▾");
  const nd=$("nudge");nd.textContent="";
+ if(RECUR_DUE){const b=el("div","nudge");b.style.background="#fff4e7";b.style.borderColor="#f7941e";
+  b.style.color="#a84c2a";
+  b.appendChild(el("div",null,"That was the last scheduled \u201C"+RECUR_DUE.title+"\u201D. Nothing further is on the board for it."));
+  const r=el("div","row2");
+  [["Extend 4 months",4],["Extend 12 months",12]].forEach(([lab,mo])=>{
+   const x=el("button",null,lab);x.onclick=()=>extendSeries(RECUR_DUE.id,mo);r.appendChild(x)});
+  const done=el("button",null,"Let it end");
+  done.onclick=()=>{RECUR_DUE=null;render()};
+  r.appendChild(done);b.appendChild(r);nd.appendChild(b)}
  if(LEGACY){const b=el("div","nudge");b.style.background="#e9f4f6";b.style.borderColor="#9fc9d1";
   b.style.color="#093c44";
   b.appendChild(el("div",null,"Found "+LEGACY.tasks.length+" items saved under an earlier build ("+LEGACY.key+"). This build started from its own copy of "+SEED.length+" items."));
@@ -613,26 +781,37 @@ Object.keys(CATS).forEach(c=>{[$("aCat"),$("bCat")].forEach(sel=>{const o=el("op
 TIERS.concat([""]).forEach(t=>{const o=el("option",null,t||"— none —");o.value=t;$("aTier").appendChild(o)});
 STATUSES.forEach(s=>{const o=el("option",null,s);o.value=s;$("aStatus").appendChild(o)});
 [""].concat(EFFORTS).forEach(v=>{const o=el("option",null,v||"— none —");o.value=v;$("aEffort").appendChild(o)});
+[""].concat(PRIOS).forEach(v=>{const o=el("option",null,v||"— none —");o.value=v;$("aPrio").appendChild(o)});
 $("q").oninput=e=>{F.q=e.target.value;render()};
 $("fTier").onchange=e=>{F.tier=e.target.value;render()};
 $("fStatus").onchange=e=>{F.status=e.target.value;render()};
 $("sort1").onchange=e=>{F.s1=e.target.value;render()};
 $("sort2").onchange=e=>{F.s2=e.target.value;render()};
-$("bClear").onclick=()=>{F={cats:new Set(),tier:"",status:"",q:"",s1:"heat",s2:"",stat:""};
- $("q").value="";$("fTier").value="";$("fStatus").value="";$("sort1").value="heat";$("sort2").value="";render()};
+let RECUR_FOR=null;
+$("rCancel").onclick=()=>$("dRecur").close();
+$("rSave").onclick=async()=>{
+ const t=TASKS.find(x=>x.id===RECUR_FOR);$("dRecur").close();
+ if(!t)return;
+ if(t.series){const old=seriesOf(t.series).filter(x=>x.id!==t.id&&x.status!=="Done");
+  old.forEach(x=>{x.deleted=nowISO();x.touched=x.deleted})}
+ await makeRecurring(t,$("rKind").value,+$("rMonths").value)};
+
+$("bClear").onclick=()=>{F={cats:new Set(),tier:"",status:"",proj:"",q:"",s1:"heat",s2:"",stat:""};
+ $("q").value="";$("fTier").value="";$("fStatus").value="";$("fProj").value="";
+ $("sort1").value="heat";$("sort2").value="";render()};
 $("hDone").onclick=()=>{const d=$("done");d.style.display=d.style.display==="none"?"flex":"none";
  d.style.flexDirection="column";d.style.gap="5px";render()};
 
 // add
-$("bAdd").onclick=()=>{["aTitle","aProj","aParent","aDeps","aPeople","aNotes","aStart","aDue"].forEach(i=>$(i).value="");
+$("bAdd").onclick=()=>{["aTitle","aProj","aParent","aNotes","aStart","aDue"].forEach(i=>$(i).value="");
  $("dAdd").showModal()};
 $("aCancel").onclick=()=>$("dAdd").close();
 $("aSave").onclick=async()=>{const t=$("aTitle").value.trim();if(!t){toast("Give it a title first");return}
  const n=TASKS.filter(x=>x.id.startsWith("M-")).length+1;
  TASKS.push({id:"M-"+String(n).padStart(3,"0"),title:t,cat:$("aCat").value,proj:$("aProj").value,
-  folder:"",parent:$("aParent").value.trim(),deps:$("aDeps").value.trim(),pin:"",
+  folder:"",parent:$("aParent").value.trim(),prio:$("aPrio").value,pin:"",
   status:$("aStatus").value,start:$("aStart").value,due:$("aDue").value,done:"",assignee:"",
-  people:$("aPeople").value,created:nowISO(),src:"Added by hand",raw:t,xref:"",verify:false,notes:$("aNotes").value,
+  people:"",created:nowISO(),src:"Added by hand",raw:t,xref:"",verify:false,notes:$("aNotes").value,
   tier:$("aTier").value,cluster:"",effort:$("aEffort").value,touched:nowISO(),rawStatus:""});
  await save();$("dAdd").close();render();toast("Added")};
 
@@ -694,7 +873,14 @@ function dl(name,text,type){const b=new Blob([text],{type:type});const u=URL.cre
 $("bExp").onclick=async()=>{META.lastExport=TODAY.toISOString().slice(0,10);await save();
  dl("launch-board-"+BUILD+"-backup.json",JSON.stringify({build:BUILD,exported:new Date().toISOString(),tasks:TASKS,meta:META,links:LINKGROUPS},null,1),"application/json");
  render();toast("Backup saved")};
-$("bCsv").onclick=()=>{const k=["id","title","cat","proj","tier","status","due","done","effort","pin","frog","created","parent","deps","people","src","notes","raw"];
+$("bClearDone").onclick=async()=>{
+ const done=alive().filter(t=>t.status==="Done");
+ if(!done.length){toast("Nothing completed to clear");return}
+ if(!confirm("Delete "+done.length+" completed item"+(done.length===1?"":"s")+"?\n\nThey leave the board for good. Export a backup first if you want the history."))return;
+ const n=nowISO();done.forEach(t=>{t.deleted=n;t.touched=n});
+ await save();render();toast(done.length+" cleared")};
+
+$("bCsv").onclick=()=>{const k=["id","title","cat","proj","tier","status","start","due","done","prio","effort","pin","frog","recur","series","created","parent","src","notes","raw"];
  const esc=v=>'"'+String(v===undefined?"":v).replace(/"/g,'""')+'"';
  dl("launch-board.csv",[k.join(",")].concat(TASKS.map(t=>k.map(x=>esc(t[x])).join(","))).join("\n"),"text/csv");
  toast("CSV saved")};
