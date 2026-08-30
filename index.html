@@ -395,6 +395,8 @@ function heat(t){
   else if(dst>0&&dst<=7)why.push((st.derived?"start in ":"starts in ")+dst+"d");
  }
 
+ const pinB=t.pin?30:0;
+ if(t.pin)why.unshift("pinned");
  const prio=PRIOW[t.prio]!==undefined?PRIOW[t.prio]:PRIOW[""];
  const eff =EFFW[t.effort]!==undefined?EFFW[t.effort]:EFFW[""];
  if(t.prio==="High")why.push("high priority");
@@ -410,7 +412,7 @@ function heat(t){
   if(stale>4)why.push("gone quiet");
  }
 
- const n=Math.round(Math.min(100,timing+prio+eff+tier*0.66+stale));
+ const n=Math.round(Math.min(100,timing+prio+eff+tier*0.66+stale+pinB));
  return{n:n,p:n,why:why.slice(0,2).join(" · ")}
 }
 function heatColor(n){return n>=70?"#C62828":n>=45?"#E65100":n>=25?"#f7941e":"#2f8d98"}
@@ -523,11 +525,14 @@ function matches(t){
  return true
 }
 const CATORDER=Object.keys(CATS);
-let HEATC=null;                       // per-render cache; heat() is called O(n log n) times
+// Keyed by the row object itself, not by t.id. Two rows can end up sharing an id
+// after an import or a merge, and an id-keyed cache then hands one row the other's
+// score — the number on screen stops matching the number being sorted on.
+let HEATC=null;
 function heatOf(t){
  if(!HEATC)HEATC=new Map();
- if(!HEATC.has(t.id))HEATC.set(t.id,heat(t).n);
- return HEATC.get(t.id)}
+ if(!HEATC.has(t))HEATC.set(t,heat(t).n);
+ return HEATC.get(t)}
 
 // A parent inherits its hottest / soonest descendant, so a urgent subtask can't be
 // buried under a calm parent. Without this the visible column of heat numbers
@@ -535,8 +540,9 @@ function heatOf(t){
 let ROLLC=null;
 function rollup(t,k){
  if(!ROLLC)ROLLC=new Map();
- const ck=k+"|"+t.id;
- if(ROLLC.has(ck))return ROLLC.get(ck);
+ let per=ROLLC.get(t);
+ if(!per){per={};ROLLC.set(t,per)}
+ if(per[k]!==undefined)return per[k];
  let v;
  const ds=descend(t.id).filter(x=>x.status!=="Done"&&x.status!=="Archived");
  if(k==="heat"){v=heatOf(t);ds.forEach(x=>{v=Math.max(v,heatOf(x))})}
@@ -547,7 +553,7 @@ function rollup(t,k){
   const rk=x=>{const i=PRIOS.indexOf(str(x.prio));return i<0?99:i};
   v=rk(t);ds.forEach(x=>{v=Math.min(v,rk(x))})}
  else v=null;
- ROLLC.set(ck,v);return v}
+ per[k]=v;return v}
 
 const str=v=>String(v==null?"":v);
 /** Raw single-key ranking. Returns 0 on a genuine tie so callers can chain. */
@@ -574,9 +580,11 @@ function rank(k,a,b,roll){
  * secondary sort, then a stable tiebreak. `roll` lifts parents by their
  * descendants and is only used for the top-level rows.
  */
+// No pin override. Sorting by heat means the highest heat is on top, full stop.
+// Pinning feeds into the heat score instead, so a pinned row still rises and the
+// number on screen explains why it's there.
 function cmp(k1,k2,roll){
- return(a,b)=> ((b.pin?1:0)-(a.pin?1:0))
-   || rank(k1,a,b,roll) || rank(k2,a,b,roll)
+ return(a,b)=> rank(k1,a,b,roll) || rank(k2,a,b,roll)
    || str(a.title).localeCompare(str(b.title))
    || str(a.id).localeCompare(str(b.id))}
 
@@ -706,7 +714,7 @@ function detailEl(t){
  fld("My read",ta,true);
 
  const r=el("div","row2");
- const pin=el("button",null,t.pin?"★ Pinned — unpin":"Pin to top");
+ const pin=el("button",null,t.pin?"★ Pinned — unpin":"Pin (big heat boost)");
  pin.onclick=async()=>{t.pin=t.pin?"":"P1";touch(t);await save();render()};
  const vf=el("button",null,t.verify?"Clear review flag":"Flag for review");
  vf.onclick=async()=>{t.verify=!t.verify;touch(t);await save();render()};
