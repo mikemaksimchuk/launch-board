@@ -289,7 +289,7 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
   <label><span class="lbl">Start</span><input type="date" id="aStart"></label>
   <label><span class="lbl">Due</span><input type="date" id="aDue"></label>
   <label><span class="lbl">Effort</span><select id="aEffort"></select></label>
-  <label><span class="lbl">Nest under (ID)</span><input type="text" id="aParent" placeholder="e.g. T-001"></label>
+  <label><span class="lbl">Nest under</span><select id="aParent"></select></label>
   <label><span class="lbl">Priority</span><select id="aPrio"></select></label>
   <label class="full"><span class="lbl">Notes</span><textarea id="aNotes" rows="2"></textarea></label>
  </div>
@@ -700,6 +700,37 @@ function detailEl(t){
    if(key==="status"&&sl.value==="Done")t.done=new Date().toISOString().slice(0,10);
    await commit(true)};fld(k,sl)};
 
+ /**
+  * Parent picker. Lists only tasks that already have sub-items — new parents are
+  * made by dragging one row onto another, not by typing an id. Anything that would
+  * form a loop is filtered out by canNest.
+  */
+ const parentSel=()=>{
+  const sl=el("select");sl.style.width="100%";
+  let opts=alive().filter(x=>x.id!==t.id&&kids(x.id).length&&canNest(t.id,x.id));
+  if(t.parent&&!opts.some(x=>x.id===t.parent)){
+   const cur=TASKS.find(x=>x.id===t.parent&&!x.deleted);
+   if(cur)opts=opts.concat([cur]);        // keep the current parent selectable
+  }
+  const seen={};opts.forEach(x=>{seen[x.title]=(seen[x.title]||0)+1});
+  opts.sort((a,b)=>String(a.title).localeCompare(String(b.title)));
+  const none=el("option",null,opts.length
+   ?"— not nested —"
+   :"— no parent tasks yet, drag one item onto another —");
+  none.value="";sl.appendChild(none);
+  opts.forEach(x=>{
+   const n=kids(x.id).length;
+   const dup=seen[x.title]>1?" ["+x.id+"]":"";
+   const o=el("option",null,x.title+dup+"  ("+n+" nested)");
+   o.value=x.id;if(t.parent===x.id)o.selected=true;sl.appendChild(o)});
+  sl.disabled=!opts.length&&!t.parent;
+  sl.onchange=async()=>{
+   const v=sl.value;
+   if(v&&!canNest(t.id,v)){toast("That would nest this inside its own sub-item");render();return}
+   t.parent=v;if(v)COLL.delete(v);
+   await commit(true)};
+  fld("Nested under",sl)};
+
  txt("Title","title",null,true);
  sel("Category","cat",Object.keys(CATS));
  txt("Project","proj","e.g. Partner Districts");
@@ -708,7 +739,7 @@ function detailEl(t){
  dt("Start","start"); dt("Due","due");
  sel("Effort","effort",EFFORTS,true);
  sel("Priority","prio",PRIOS,true);
- txt("Nested under (ID)","parent","e.g. T-001");
+ parentSel();
  const ta=document.createElement("textarea");ta.rows=2;ta.value=t.notes||"";ta.style.width="100%";
  ta.onchange=async()=>{t.notes=ta.value;await commit(false)};
  fld("My read",ta,true);
@@ -853,13 +884,26 @@ $("hDone").onclick=()=>{const d=$("done");d.style.display=d.style.display==="non
  d.style.flexDirection="column";d.style.gap="5px";render()};
 
 // add
-$("bAdd").onclick=()=>{["aTitle","aProj","aParent","aNotes","aStart","aDue"].forEach(i=>$(i).value="");
+function fillParentSel(sel,cur){
+ sel.textContent="";
+ const opts=alive().filter(x=>kids(x.id).length)
+   .sort((a,b)=>String(a.title).localeCompare(String(b.title)));
+ const seen={};opts.forEach(x=>{seen[x.title]=(seen[x.title]||0)+1});
+ const none=el("option",null,opts.length?"— not nested —":"— no parent tasks yet —");
+ none.value="";sel.appendChild(none);
+ opts.forEach(x=>{const o=el("option",null,
+   x.title+(seen[x.title]>1?" ["+x.id+"]":"")+"  ("+kids(x.id).length+" nested)");
+  o.value=x.id;if(cur===x.id)o.selected=true;sel.appendChild(o)});
+ sel.disabled=!opts.length}
+
+$("bAdd").onclick=()=>{["aTitle","aProj","aNotes","aStart","aDue"].forEach(i=>$(i).value="");
+ fillParentSel($("aParent"),"");
  $("dAdd").showModal()};
 $("aCancel").onclick=()=>$("dAdd").close();
 $("aSave").onclick=async()=>{const t=$("aTitle").value.trim();if(!t){toast("Give it a title first");return}
  const n=TASKS.filter(x=>x.id.startsWith("M-")).length+1;
  TASKS.push({id:"M-"+String(n).padStart(3,"0"),title:t,cat:$("aCat").value,proj:$("aProj").value,
-  folder:"",parent:$("aParent").value.trim(),prio:$("aPrio").value,pin:"",
+  folder:"",parent:$("aParent").value,prio:$("aPrio").value,pin:"",
   status:$("aStatus").value,start:$("aStart").value,due:$("aDue").value,done:"",assignee:"",
   people:"",created:nowISO(),src:"Added by hand",raw:t,xref:"",verify:false,notes:$("aNotes").value,
   tier:$("aTier").value,cluster:"",effort:$("aEffort").value,touched:nowISO(),rawStatus:""});
