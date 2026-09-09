@@ -12,9 +12,35 @@
 <style>
 :root{--blackTeal:#091d20;--darkTeal:#093c44;--teal:#115e6e;--midTeal:#2f8d98;
  --lightTeal:#C7DEE0;--paleBlue:#f3fafc;--green:#b5cd34;--orange:#f7941e;
- --cream:#fff4e7;--lightGray:#6d6e71;--a11yOrange:#a84c2a;--a11yGreen:#6a7f17;--darkGray:#414042;--white:#fff}
+ --cream:#fff4e7;--lightGray:#6d6e71;--a11yOrange:#a84c2a;--a11yGreen:#6a7f17;--darkGray:#414042;--white:#fff;
+ /* themeable surfaces — the dark block below is the only place these change */
+ --page:#fbfdfd;--surface:#fff;--surface2:#f3fafc;--line:#C7DEE0;--line2:#2f8d98;
+ --text:#091d20;--muted:#6d6e71;--shade:rgba(9,29,32,.06)}
+
+html[data-theme="dark"]{
+ --page:#0e1719;--surface:#162124;--surface2:#1b292c;--line:#2b3d41;--line2:#3f6f78;
+ --text:#e4eded;--muted:#93a7a9;--shade:rgba(0,0,0,.25);
+ --lightTeal:#2b3d41;--paleBlue:#1b292c;--white:#162124;--lightGray:#93a7a9;
+ --a11yOrange:#f0a05a;--a11yGreen:#a9c04a;--cream:#2a1f14;color-scheme:dark}
+html[data-theme="dark"] .pill.tier{background:var(--midTeal);border-color:var(--midTeal);color:#08191c}
+html[data-theme="dark"] .cb.done{background:var(--midTeal);border-color:var(--midTeal);color:#08191c}
+html[data-theme="dark"] .mv1{--accent:#4aa3b4;--ink:#a9d6de;--tint:#16292e}
+html[data-theme="dark"] .mv2{--accent:#57b3bf;--ink:#b3e2e8;--tint:#152a2d}
+html[data-theme="dark"] .mv3{--accent:#b5cd34;--ink:#cfe07a;--tint:#20260f}
+html[data-theme="dark"] .mv4{--accent:#f7941e;--ink:#f5b877;--tint:#2b1d0e}
+html[data-theme="dark"] .pill.prioHigh{background:#3a1a18;border-color:#e07a72;color:#ff9d94}
+html[data-theme="dark"] .pill.prioMedium{background:#33210f;border-color:#d0904f;color:#f0b070}
+html[data-theme="dark"] .pill.prioLow{background:#16292e;border-color:#3f6f78;color:#8fc6cf}
+html[data-theme="dark"] .pill.frogp{background:#20260f;border-color:#7d9227;color:#c2d466}
+html[data-theme="dark"] .pill.recur{background:#16292e;border-color:#3f6f78;color:#8fc6cf}
+html[data-theme="dark"] .task.dropok{background:#20260f!important}
+html[data-theme="dark"] .frogb{background:var(--surface2)}
+html[data-theme="dark"] button.pri{color:#2a1a05}
+.themebtn{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.34);color:#fff;
+ font-size:15px;line-height:1;padding:8px 11px}
+.themebtn:hover{background:rgba(255,255,255,.26);border-color:rgba(255,255,255,.5);color:#fff}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Figtree,system-ui,sans-serif;color:var(--blackTeal);background:#fbfdfd;
+body{font-family:Figtree,system-ui,sans-serif;color:var(--text);background:var(--page);
  line-height:1.45;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
 .wrap{max-width:1320px;margin:0 auto;padding:22px 20px 80px}
 .banner{position:relative;overflow:hidden;border-bottom:5px solid var(--green);
@@ -40,6 +66,10 @@ h1{font-size:clamp(19px,3.6vw,28px);font-weight:800;color:#fff;letter-spacing:-.
 .tag{font-size:12.5px;color:rgba(255,255,255,.9);font-weight:600;margin-top:4px;
  text-shadow:0 2px 8px rgba(9,29,32,.8)}
 .mastbtns{display:flex;gap:7px}
+.mastcol{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+.synctop{font-size:11px;color:rgba(255,255,255,.72);font-style:italic;text-align:right;
+ letter-spacing:.01em;white-space:nowrap}
+@media(max-width:620px){.mastcol{align-items:stretch}.synctop{text-align:left}}
 .brandwrap{display:flex;align-items:flex-start;gap:15px;min-width:0}
 .logo{flex:none;width:78px;height:78px;display:flex;align-items:center;justify-content:center;
  filter:drop-shadow(0 2px 8px rgba(9,29,32,.55))}
@@ -53,32 +83,32 @@ h1{font-size:clamp(19px,3.6vw,28px);font-weight:800;color:#fff;letter-spacing:-.
 .acrosep{color:rgba(255,255,255,.4);padding:0 3px}
 @media(max-width:620px){.logo{width:56px;height:56px;border-radius:11px}.brandwrap{gap:11px}
  .acro{font-size:9.5px;text-transform:none;letter-spacing:0}}
-button{font-family:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--lightTeal);
- background:var(--white);color:var(--darkTeal);font-size:12.5px;font-weight:600;padding:8px 13px;transition:.12s}
-button:hover{border-color:var(--midTeal);background:var(--paleBlue)}
+button{font-family:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);
+ background:var(--surface);color:var(--text);font-size:12.5px;font-weight:600;padding:8px 13px;transition:.12s}
+button:hover{border-color:var(--midTeal);background:var(--surface2)}
 *:focus-visible{outline:3px solid var(--a11yOrange)!important;outline-offset:2px!important}
 button.pri{background:var(--orange);color:#3d2200;border-color:#d97d0d;font-weight:700}
 button.pri:hover{background:#ffa733;color:#3d2200;border-color:#d97d0d}
 .mastbtns button{box-shadow:0 1px 4px rgba(9,29,32,.28)}
 .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:9px;margin:18px 0}
-.stat{background:var(--white);border:1px solid var(--lightTeal);border-radius:8px;padding:11px 13px;
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px 13px;
  cursor:pointer;transition:.12s;text-align:left}
 .stat:hover{border-color:var(--midTeal)}
 .stat.on{border-color:var(--orange);background:var(--cream)}
 .stat b{display:block;font-size:23px;font-weight:800;color:var(--darkTeal);letter-spacing:-.02em}
-.stat span{font-size:10.5px;color:var(--lightGray);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
-.bar{background:var(--white);border:1px solid var(--lightTeal);border-radius:9px;padding:12px 14px;margin-bottom:14px}
+.stat span{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.bar{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-bottom:14px}
 .chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .chip{border-radius:99px;padding:5px 12px;font-size:12px;font-weight:700;border:2px solid;
- background:var(--white);cursor:pointer;transition:.12s;opacity:.42}
+ background:var(--surface);cursor:pointer;transition:.12s;opacity:.42}
 .chip.on{opacity:1}
 .row2{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
 select,input[type=text],input[type=date],input[type=search],textarea{font-family:inherit;font-size:12.5px;
- padding:7px 10px;border:1px solid var(--lightTeal);border-radius:6px;color:var(--blackTeal);background:var(--white)}
+ padding:7px 10px;border:1px solid var(--line);border-radius:6px;color:var(--text);background:var(--surface)}
 input:focus,select:focus,textarea:focus{outline:3px solid var(--a11yOrange);outline-offset:-1px}
-.lbl{font-size:10.5px;font-weight:700;color:var(--lightGray);text-transform:uppercase;letter-spacing:.05em}
+.lbl{font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 #list{display:flex;flex-direction:column;gap:5px}
-.task{border-radius:7px;border:1px solid var(--lightTeal);border-left-width:5px;background:var(--white);
+.task{border-radius:7px;border:1px solid var(--line);border-left-width:5px;background:var(--surface);
  display:grid;grid-template-columns:30px 1fr auto;gap:9px;align-items:start;padding:9px 11px;transition:.1s}
 .task:hover{box-shadow:0 1px 7px rgba(9,60,68,.09)}
 .task.kid{margin-left:26px}
@@ -89,7 +119,7 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--a11yOrange);outl
 .task.dropok{outline:2px dashed var(--green);outline-offset:2px;background:#f8faea!important}
 .task.frog{box-shadow:inset 3px 0 0 var(--green)}
 .task.frog.pinned{box-shadow:inset 3px 0 0 var(--orange),inset 6px 0 0 var(--green)}
-.frogb{flex:none;margin-left:7px;border:1px solid var(--lightTeal);background:var(--white);
+.frogb{flex:none;margin-left:7px;border:1px solid var(--line);background:var(--surface);
  border-radius:20px;padding:1px 7px;font-size:12px;line-height:1.5;cursor:pointer;
  opacity:.42;filter:grayscale(1);transition:.12s}
 .frogb:hover{opacity:.85;filter:none;border-color:var(--green)}
@@ -107,16 +137,16 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--a11yOrange);outl
 .caret{background:none;border:none;padding:0 4px 0 0;font-size:11px;color:var(--teal);
  cursor:pointer;font-weight:800;line-height:1}
 .caret:hover{color:var(--orange)}
-.prog{font-size:10px;color:var(--lightGray);font-weight:600;margin-left:5px}
-.cb{width:19px;height:19px;border:2px solid var(--midTeal);border-radius:4px;background:var(--white);
+.prog{font-size:10px;color:var(--muted);font-weight:600;margin-left:5px}
+.cb{width:19px;height:19px;border:2px solid var(--line2);border-radius:4px;background:var(--surface);
  cursor:pointer;margin-top:2px;flex:none;padding:0}
-.cb:hover{background:var(--paleBlue)}
+.cb:hover{background:var(--surface2)}
 .cb.done{background:var(--darkTeal);border-color:var(--darkTeal);color:#fff;font-size:12px;line-height:15px}
 .ttl{font-size:13.5px;font-weight:600;cursor:pointer;word-break:break-word}
-.ttl.strike{text-decoration:line-through;color:var(--lightGray)}
+.ttl.strike{text-decoration:line-through;color:var(--muted)}
 .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;align-items:center}
-.pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:var(--paleBlue);
- color:var(--teal);border:1px solid var(--lightTeal);text-transform:uppercase;letter-spacing:.04em}
+.pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:var(--surface2);
+ color:var(--teal);border:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}
 .pill.due{background:var(--cream);color:#8a4a00;border-color:#f0d5b3}
 .pill.od{background:#fde8e6;color:#a02318;border-color:#f3c3bd}
 .pill.cl{background:#fdf3dd;color:#8a6100;border-color:#efd79a}
@@ -126,18 +156,18 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--a11yOrange);outl
 .heatn{font-size:16px;font-weight:800;color:var(--darkTeal);letter-spacing:-.02em}
 .heatb{height:4px;width:56px;background:var(--lightTeal);border-radius:99px;overflow:hidden;margin-top:3px}
 .heatf{height:100%;border-radius:99px;transition:width .3s}
-.why{font-size:9.5px;color:var(--lightGray);margin-top:3px;white-space:nowrap}
+.why{font-size:9.5px;color:var(--muted);margin-top:3px;white-space:nowrap}
 .detail{grid-column:1/-1;border-top:1px dashed var(--lightTeal);margin-top:8px;padding-top:9px;
  display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:11px}
 .fld{font-size:11.5px}
-.fld .k{font-size:9.5px;font-weight:700;color:var(--lightGray);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
-.raw{font-family:ui-monospace,monospace;font-size:10.5px;background:var(--paleBlue);padding:7px 9px;
- border-radius:5px;border:1px solid var(--lightTeal);white-space:pre-wrap;word-break:break-word;max-height:140px;overflow:auto}
+.fld .k{font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.raw{font-family:ui-monospace,monospace;font-size:10.5px;background:var(--surface2);padding:7px 9px;
+ border-radius:5px;border:1px solid var(--line);white-space:pre-wrap;word-break:break-word;max-height:140px;overflow:auto}
 h2{font-size:16px;font-weight:800;color:var(--darkTeal);border-bottom:3px solid var(--green);
  padding-bottom:5px;display:inline-block;margin:30px 0 4px}
-.sub{font-size:11.5px;color:var(--lightGray);margin-bottom:13px}
-.empty{padding:34px;text-align:center;color:var(--lightGray);font-size:13px;
- border:1px dashed var(--lightTeal);border-radius:9px;background:var(--white)}
+.sub{font-size:11.5px;color:var(--muted);margin-bottom:13px}
+.empty{padding:34px;text-align:center;color:var(--muted);font-size:13px;
+ border:1px dashed var(--line);border-radius:9px;background:var(--surface)}
 dialog{border:none;border-radius:11px;padding:0;max-width:660px;width:94%;box-shadow:0 14px 46px rgba(9,29,32,.3)}
 dialog::backdrop{background:rgba(9,29,32,.42)}
 .dlg{padding:20px 22px}
@@ -149,13 +179,13 @@ dialog::backdrop{background:rgba(9,29,32,.42)}
 .dlg input,.dlg select,.dlg textarea{width:100%;margin-top:3px}
 .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:15px;padding-top:13px;border-top:1px solid var(--lightTeal)}
 .lnkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:8px;margin:0 0 16px;padding-left:6px}
-a.lnk{display:block;padding:10px 12px;background:var(--tint,var(--paleBlue));border:1px solid var(--lightTeal);
+a.lnk{display:block;padding:10px 12px;background:var(--tint,var(--surface2));border:1px solid var(--line);
  border-left:4px solid var(--accent,var(--orange));border-radius:5px;text-decoration:none;color:var(--ink,var(--a11yOrange));
  font-size:12.5px;font-weight:600;transition:.12s}
-a.lnk:hover{background:var(--white);border-color:var(--accent,var(--midTeal));transform:translateX(2px)}
+a.lnk:hover{background:var(--surface2);border-color:var(--accent,var(--midTeal));transform:translateX(2px)}
 h3.lg{font-size:13px;font-weight:700;color:var(--ink,var(--teal));margin:0 0 8px;text-transform:uppercase;
  letter-spacing:.05em;display:flex;align-items:center;gap:9px;padding:10px 13px;
- background:var(--tint,var(--white));border:1px solid var(--lightTeal);
+ background:var(--tint,var(--surface));border:1px solid var(--line);
  border-left:5px solid var(--accent,var(--teal));border-radius:6px;cursor:pointer;transition:.12s}
 h3.lg:hover{border-color:var(--accent,var(--midTeal));transform:translateX(2px)}
 h3.lg .cv{flex:none;width:10px;font-size:11px;opacity:.85}
@@ -171,7 +201,7 @@ h3.lg .lgn{flex:none;font-size:11px;font-weight:700;letter-spacing:0;padding:2px
 .mv3{--accent:#b5cd34;--ink:#5b6b12;--tint:#f8faea}
 .mv4{--accent:#f7941e;--ink:#a84c2a;--tint:#fff4e7}
 footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;display:flex;
- justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--lightGray);font-style:italic}
+ justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);font-style:italic}
 .nudge{background:var(--cream);border:1px solid #f0d5b3;color:#8a4a00;padding:8px 12px;
  border-radius:6px;font-size:12px;font-weight:600;font-style:normal;margin-top:10px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--darkTeal);
@@ -194,10 +224,14 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
      <span class="acrosep">|</span> <b>P</b>ending, <b>A</b>ctive, and <b>D</b>elayed</div>
    </div>
   </div>
-  <div class="mastbtns">
-   <button id="bAdd" class="pri">Add task</button>
-   <button id="bBatch">Upload batch</button>
-   <button id="bSyncTop">Sync</button>
+  <div class="mastcol">
+   <div class="mastbtns">
+    <button id="bTheme" class="themebtn">☾</button>
+    <button id="bAdd" class="pri">Add task</button>
+    <button id="bBatch" class="pri">Upload batch</button>
+    <button id="bSyncTop" class="pri">Sync</button>
+   </div>
+   <div class="synctop" id="syncTop"></div>
   </div>
  </div>
  </div>
@@ -230,7 +264,7 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
  <div class="sub" id="linksSub">Static reference, grouped by how often you reach for them.</div>
  <div id="links"></div>
  <footer>
-  <div>Launch Board · Michigan Virtual AI Lab · build <span id="bld"></span> · standalone</div>
+  <div>L.A.U.N.C.H. P.A.D. · Michigan Virtual AI Lab · <span id="bld"></span> · standalone</div>
   <div class="mastbtns">
    <button id="bExp">Export backup</button>
    <button id="bCsv">Export CSV</button>
@@ -297,7 +331,7 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
 </div></dialog>
 
 <dialog id="dBatch"><div class="dlg"><h3>Upload batch</h3>
- <div class="sub">Paste anything — a Wrike list, phone reminders, meeting notes. One item per line. Optional markers: <b>#home #boat #work #church #travel #personal</b> for category, <b>!tomorrow !friday !9/15</b> for a due date, <b>!!</b> to pin. Nothing is added until you review it.</div>
+ <div class="sub">Paste anything — a Wrike list, phone reminders, meeting notes. One item per line. Optional markers: <b>#home #work #boat #church #travel #intake</b> for category, <b>!tomorrow !friday !9/15</b> for a due date, <b>!!</b> to pin. Nothing is added until you review it.</div>
  <textarea id="bText" rows="8" style="width:100%" placeholder="Paste here — or dictate to Siri and paste your reminders.&#10;&#10;Fix the binnacle straps #boat !saturday&#10;Call Carla about the UP trip #work !tomorrow&#10;Submit August mileage #travel !! "></textarea>
  <div class="row2"><span class="lbl">Assign all to</span>
   <select id="bCat"></select><button id="bParse" class="pri">Review</button></div>
@@ -320,8 +354,29 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
 const SEED=[];
 let LINKGROUPS=[];
 
-const CATS={"Home":["#C62828","#FCE8E6"],"Boat":["#1565C0","#E3EFFB"],"Work":["#2E7D32","#E6F4E6"],
- "Church":["#D81B60","#FCE4EC"],"Personal Admin":["#6A1B9A","#F2E7F7"],"Travel & Expense":["#E65100","#FDEDE0"]};
+// Order here drives the chips, the pickers and the "Sort: Category" order.
+const CATS={"Home":["#C62828","#FCE8E6"],"Work":["#2E7D32","#E6F4E6"],"Boat":["#1565C0","#E3EFFB"],
+ "Church":["#D81B60","#FCE4EC"],"Travel & Expense":["#E65100","#FDEDE0"],
+ "Unreviewed Intake":["#6A1B9A","#F2E7F7"]};
+const CATRENAME={"Personal Admin":"Unreviewed Intake"};   // applied once on load
+// Category colours are written straight onto each row as inline styles, so they
+// can't be themed by CSS alone — each needs a dark counterpart.
+const CATSD={"Home":["#F08A85","#2b1a19"],"Work":["#7CC583","#16241a"],"Boat":["#6FAEEE","#151f2b"],
+ "Church":["#F284AF","#2a1720"],"Travel & Expense":["#F5A24F","#2a1d12"],
+ "Unreviewed Intake":["#C08FE0","#231729"]};
+let THEME=(()=>{try{return localStorage.getItem("launchboard-theme")||
+ (matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){return "light"}})();
+const isDark=()=>THEME==="dark";
+function catColors(c){
+ const l=CATS[c];
+ if(!l)return isDark()?["#7d8a8c","#1b292c"]:["#6d6e71","#f3fafc"];
+ return isDark()?(CATSD[c]||["#7d8a8c","#1b292c"]):l}
+function applyTheme(){
+ document.documentElement.dataset.theme=THEME;
+ const b=$("bTheme");
+ if(b){b.textContent=isDark()?"☀":"☾";
+  b.title=isDark()?"Switch to light mode":"Switch to dark mode";
+  b.setAttribute("aria-label",b.title)}}
 // Paste the logo here as a data URI — data:image/png;base64,iVBORw0KG...
 // Keeping it inline is what lets this stay a single portable file that works offline.
 // Leave empty and a lettermark stands in.
@@ -339,6 +394,10 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
+const VERSION="v11";
+// BUILD doubles as the localStorage key. Bumping it makes the board look for data
+// that isn't there and fall into the legacy-recovery path, so the visible version
+// is tracked separately.
 const BUILD="2026.08.26-1";
 const KEY="launchboard-"+BUILD;
 let LEGACY=null;
@@ -415,7 +474,9 @@ function heat(t){
  const n=Math.round(Math.min(100,timing+prio+eff+tier*0.66+stale+pinB));
  return{n:n,p:n,why:why.slice(0,2).join(" · ")}
 }
-function heatColor(n){return n>=70?"#C62828":n>=45?"#E65100":n>=25?"#f7941e":"#2f8d98"}
+function heatColor(n){return isDark()
+ ?(n>=70?"#F0655F":n>=45?"#F5913F":n>=25?"#f7b04e":"#4aa3b4")
+ :(n>=70?"#C62828":n>=45?"#E65100":n>=25?"#f7941e":"#2f8d98")}
 
 async function load(){
  try{const r={value:localStorage.getItem(KEY)};
@@ -598,7 +659,7 @@ function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=
 function pill(txt,cls){return el("span","pill"+(cls?" "+cls:""),txt)}
 
 function taskEl(t,isKid){
- const[bd,bg]=CATS[t.cat]||["#6d6e71","#f3fafc"];
+ const[bd,bg]=catColors(t.cat);
  const sd=staleDays(t), isStale=sd>=14;
  const d=el("div","task"+(isKid?" kid":"")+(t.pin?" pinned":"")+(t.frog?" frog":"")+(isStale?" stale":""));
  d.style.borderColor=bd;d.style.background=bg;
@@ -799,9 +860,10 @@ function render(){
   b.appendChild(el("b",null,String(n)));b.appendChild(el("span",null,lab));
   b.onclick=()=>{F.stat=k==="all"?"":k;render()};st.appendChild(b)});
  const cw=$("cats");cw.textContent="";
- Object.keys(CATS).forEach(c=>{const[bd,bg]=CATS[c];
+ Object.keys(CATS).forEach(c=>{const[bd,bg]=catColors(c);
   const b=el("button","chip"+(F.cats.has(c)||!F.cats.size?" on":""),c);
-  b.style.borderColor=bd;b.style.color=bd;b.style.background=F.cats.has(c)?bg:"#fff";
+  b.style.borderColor=bd;b.style.color=bd;
+  b.style.background=F.cats.has(c)?bg:"var(--surface)";
   b.onclick=()=>{F.cats.has(c)?F.cats.delete(c):F.cats.add(c);render()};cw.appendChild(b)});
  // project options track whichever categories are selected
  const projPool=alive().filter(t=>t.status!=="Done"&&(!F.cats.size||F.cats.has(t.cat)));
@@ -827,8 +889,9 @@ function render(){
  else dn.forEach(t=>D.appendChild(taskEl(t,false)));
  $("hDone").textContent="Completed ("+dn.length+") "+(D.style.display==="none"?"▸":"▾");
  const nd=$("nudge");nd.textContent="";
- if(RECUR_DUE){const b=el("div","nudge");b.style.background="#fff4e7";b.style.borderColor="#f7941e";
-  b.style.color="#a84c2a";
+ if(RECUR_DUE){const b=el("div","nudge");
+  b.style.background=isDark()?"#2b1d0e":"#fff4e7";b.style.borderColor="#f7941e";
+  b.style.color=isDark()?"#f5b877":"#a84c2a";
   b.appendChild(el("div",null,"That was the last scheduled \u201C"+RECUR_DUE.title+"\u201D. Nothing further is on the board for it."));
   const r=el("div","row2");
   [["Extend 4 months",4],["Extend 12 months",12]].forEach(([lab,mo])=>{
@@ -836,8 +899,9 @@ function render(){
   const done=el("button",null,"Let it end");
   done.onclick=()=>{RECUR_DUE=null;render()};
   r.appendChild(done);b.appendChild(r);nd.appendChild(b)}
- if(LEGACY){const b=el("div","nudge");b.style.background="#e9f4f6";b.style.borderColor="#9fc9d1";
-  b.style.color="#093c44";
+ if(LEGACY){const b=el("div","nudge");
+  b.style.background=isDark()?"#16292e":"#e9f4f6";b.style.borderColor=isDark()?"#3f6f78":"#9fc9d1";
+  b.style.color=isDark()?"#b3e2e8":"#093c44";
   b.appendChild(el("div",null,"Found "+LEGACY.tasks.length+" items saved under an earlier build ("+LEGACY.key+"). This build started from its own copy of "+SEED.length+" items."));
   const r=el("div","row2");
   const rep=el("button",null,"Use the older data instead");
@@ -911,7 +975,7 @@ $("aSave").onclick=async()=>{const t=$("aTitle").value.trim();if(!t){toast("Give
 
 // ---- capture grammar: shared by pasted batches and voice/email capture ----
 const CT={home:"Home",boat:"Boat",work:"Work",church:"Church",travel:"Travel & Expense",
- personal:"Personal Admin",admin:"Personal Admin"};
+ personal:"Unreviewed Intake",admin:"Unreviewed Intake",intake:"Unreviewed Intake"};
 const DOW=["sun","mon","tue","wed","thu","fri","sat"];
 const isoD=d=>d.toISOString().slice(0,10);
 function grabDate(s){
@@ -1040,7 +1104,13 @@ function paintLogo(){
  else w.appendChild(el("div","fallback","LP"))}
 paintLogo();
 
-$("bld").textContent=BUILD;
+$("bTheme").onclick=()=>{
+ THEME=isDark()?"light":"dark";
+ try{localStorage.setItem("launchboard-theme",THEME)}catch(e){}
+ applyTheme();render();renderLinks()};
+applyTheme();
+
+$("bld").textContent=VERSION+" · build "+BUILD;
 
 // ---------------- encrypted GitHub sync ----------------
 const SKEY="launchboard-sync";
@@ -1138,11 +1208,20 @@ function mergeRows(local,remote){
  return{rows:Object.values(by),conflicts:conf}}
 
 function stamp(){if(!SYNC.lastSync)return "never";const d=new Date(SYNC.lastSync);
- const t=d.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
- const sameDay=d.toDateString()===new Date().toDateString();
- return sameDay?t:d.toLocaleDateString([], {month:"numeric",day:"numeric"})+" "+t}
+ const t=d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+ const now=new Date(), y=new Date(now); y.setDate(y.getDate()-1);
+ if(d.toDateString()===now.toDateString())return "today "+t;
+ if(d.toDateString()===y.toDateString())return "yesterday "+t;
+ return d.toLocaleDateString([],{month:"short",day:"numeric"})+" at "+t}
 function setBar(msg){lastMsg=msg;const b=$("syncbar");if(b)b.textContent=msg;
- const top=$("bSyncTop");if(top)top.textContent=syncing?"Syncing…":"Sync · "+stamp()}
+ // The button label is driven purely by the in-flight flag; the timestamp lives
+ // on its own line. Previously the label was repainted from `syncing` while it
+ // was still true, so it stuck on "Syncing…" and never cleared.
+ const top=$("bSyncTop");if(top){top.textContent=syncing?"Syncing…":"Sync";top.disabled=syncing}
+ const ts=$("syncTop");
+ if(ts)ts.textContent=!cfgd()?"Not synced — this device only"
+  :syncing?"Syncing…"
+  :SYNC.lastSync?"Last synced "+stamp():"Never synced";}
 function queueSync(){if(!cfgd())return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>doSync(true),2500)}
 
 async function doSync(quiet){
@@ -1160,11 +1239,12 @@ async function doSync(quiet){
    if(remote.meta&&Array.isArray(remote.meta.captured))
     META.captured=[...new Set(remote.meta.captured.concat(META.captured||[]))].slice(-400)}
   TASKS=out;
+  TASKS.forEach(t=>{const to=CATRENAME[t.cat];if(to)t.cat=to});   // rows from an un-updated device
   const cap=await pullInbox();
   const payload=await seal({build:BUILD,tasks:TASKS,meta:META,links:LINKGROUPS});
   await gh("PUT",payload,sha);
   if(cap.ids.length)await clearInbox(cap.ids);
-  SYNC.lastSync=new Date().toISOString(); saveCfg();
+  SYNC.lastSync=new Date().toISOString(); saveCfg(); syncing=false;
   localStorage.setItem(KEY,JSON.stringify({tasks:TASKS,meta:META,links:LINKGROUPS}));
   renderLinks(); render();
   setBar("Synced "+new Date().toLocaleTimeString()
@@ -1172,8 +1252,8 @@ async function doSync(quiet){
    +(conflicts.length?" · "+conflicts.length+" row(s) resolved to the newer edit":""));
   if(cap.n)toast(cap.n+" captured item"+(cap.n>1?"s":"")+" added — flagged for review");
   else if(conflicts.length&&!quiet)toast(conflicts.length+" conflict(s) — newer edit kept");
- }catch(e){setBar("Sync failed — "+e.message);if(!quiet)toast(e.message)}
- syncing=false}
+ }catch(e){syncing=false;setBar("Sync failed — "+e.message);if(!quiet)toast(e.message)}
+ finally{syncing=false;setBar(lastMsg)}}
 
 $("bSync").onclick=()=>doSync(false);
 $("bSyncTop").onclick=()=>doSync(false);
@@ -1193,11 +1273,16 @@ setTimeout(()=>{setBar(cfgd()?(SYNC.lastSync?"Last synced "+new Date(SYNC.lastSy
  if(cfgd())doSync(true)},600);
 
 load().then(()=>{
+ let dirty=false;
  // Items predating this build have no created date. Fall back to last-touched so the
  // new sort is usable — approximate for old rows, exact for everything added from here.
- let back=0;
- TASKS.forEach(t=>{if(!t.created){t.created=t.touched||nowISO();back++}});
- if(back)save();
+ TASKS.forEach(t=>{if(!t.created){t.created=t.touched||nowISO();dirty=true}});
+ // Renamed categories. Without this, rows keep the old label, match no chip and
+ // fall out of every filtered view. Runs on synced rows arriving later too.
+ let moved=0;
+ TASKS.forEach(t=>{const to=CATRENAME[t.cat];if(to){t.cat=to;moved++;dirty=true}});
+ if(dirty)save();
+ if(moved)setTimeout(()=>toast(moved+" item"+(moved===1?"":"s")+" moved to Unreviewed Intake"),900);
  TASKS.forEach(t=>{if(kids(t.id).length)COLL.add(t.id)});
  renderLinks();render()});
 </script></body></html>
