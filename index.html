@@ -114,6 +114,13 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--a11yOrange);outl
 .task.kid{margin-left:26px}
 .task.pinned{box-shadow:inset 3px 0 0 var(--orange)}
 .task.stale{border-left-style:dashed}
+.dbar{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;
+ gap:10px;margin:0 0 4px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.dhint{font-size:11px;color:var(--muted);font-style:italic}
+.dbar button{padding:5px 16px}
+@media(max-width:620px){.dhint{font-size:10px}}
+.task.carried{opacity:.62}
+.task.carried:hover{opacity:1}
 .task[draggable="true"]{cursor:grab}
 .task.dragging{opacity:.45;cursor:grabbing}
 .task.dropok{outline:2px dashed var(--green);outline-offset:2px;background:#f8faea!important}
@@ -589,6 +596,18 @@ const CATORDER=Object.keys(CATS);
 // Keyed by the row object itself, not by t.id. Two rows can end up sharing an id
 // after an import or a merge, and an id-keyed cache then hands one row the other's
 // score — the number on screen stops matching the number being sorted on.
+// While a row is expanded its sort keys are changing under you, so re-sorting
+// on every keystroke makes the row you are editing jump away. Freeze the order
+// for as long as anything is open and re-sort once it closes.
+let ORDER=null;
+function freezeOrder(list){
+ if(!OPEN.size){ORDER=new Map(list.map((t,i)=>[t.id,i]));return list}
+ if(!ORDER)ORDER=new Map(list.map((t,i)=>[t.id,i]));
+ const far=ORDER.size+1000;
+ return list.slice().sort((a,b)=>
+   (ORDER.has(a.id)?ORDER.get(a.id):far)-(ORDER.has(b.id)?ORDER.get(b.id):far)
+   || String(a.id).localeCompare(String(b.id)))}
+
 let HEATC=null;
 function heatOf(t){
  if(!HEATC)HEATC=new Map();
@@ -658,10 +677,14 @@ function clip(s,n){s=String(s||"");return s.length>(n||34)?'"'+s.slice(0,n||34)+
 function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!==undefined)e.textContent=txt;return e}
 function pill(txt,cls){return el("span","pill"+(cls?" "+cls:""),txt)}
 
+let CARRIED=new Set();
 function taskEl(t,isKid){
  const[bd,bg]=catColors(t.cat);
  const sd=staleDays(t), isStale=sd>=14;
- const d=el("div","task"+(isKid?" kid":"")+(t.pin?" pinned":"")+(t.frog?" frog":"")+(isStale?" stale":""));
+ const carried=isKid&&CARRIED.has(t.id);
+ const d=el("div","task"+(isKid?" kid":"")+(t.pin?" pinned":"")+(t.frog?" frog":"")
+  +(isStale?" stale":"")+(carried?" carried":""));
+ if(carried)d.title="Doesn't match the current filter — shown because its parent does";
  d.style.borderColor=bd;d.style.background=bg;
  // Drag to nest. An open row is left undraggable so its inputs stay usable.
  d.draggable=!OPEN.has(t.id);
@@ -739,10 +762,21 @@ function taskEl(t,isKid){
  return d
 }
 function detailEl(t){
+ // Deliberately not called "Save" — every field writes through the moment you
+ // change it. This closes the row and lets the list re-sort.
+ const closeRow=async()=>{OPEN.delete(t.id);ORDER=null;touch(t);await save();render()};
  const w=el("div","detail");
  const ro=(k,v)=>{if(!v)return;const f=el("div","fld");f.appendChild(el("div","k",k));
   f.appendChild(el("div",null,v));w.appendChild(f)};
  const commit=async(full)=>{touch(t);await save();full?render():null};
+ const bar=el("div","dbar");
+ bar.appendChild(el("div","dhint",OPEN.size>1
+  ?"Sorting is paused while rows are open"
+  :"Changes save as you make them · sorting resumes when you close"));
+ const dn=el("button","pri","Done");
+ dn.onclick=closeRow;
+ bar.appendChild(dn);
+ w.appendChild(bar);
  const fld=(k,node,full)=>{const f=el("div","fld");if(full)f.style.gridColumn="1/-1";
   f.appendChild(el("div","k",k));f.appendChild(node);w.appendChild(f);return f};
  const txt=(k,key,ph,full)=>{const i=document.createElement("input");i.type="text";
@@ -834,6 +868,7 @@ function detailEl(t){
  if(rstop)r.appendChild(rstop);
  if(unn)r.appendChild(unn);
  r.appendChild(del);
+ const dn2=el("button","pri","Done");dn2.onclick=closeRow;r.appendChild(dn2);
  fld("Actions",r,true);
 
  ro("ID",t.id);ro("Source",t.src);ro("Wrike folder",t.folder);
@@ -874,14 +909,24 @@ function render(){
  projs.forEach(v=>{const o=el("option",null,v);o.value=v;if(F.proj===v)o.selected=true;ps.appendChild(o)});
  ps.disabled=!projs.length;
 
- const pool=alive().filter(t=>t.status!=="Done"&&matches(t));
- const ids=new Set(pool.map(t=>t.id));
+ // Two rules: a matching parent brings its whole sub-tree along even where the
+ // children don't match, and a matching child still surfaces on its own when its
+ // parent is filtered out.
+ const hit=alive().filter(t=>t.status!=="Done"&&matches(t));
+ const shown=new Map(hit.map(t=>[t.id,t]));
+ CARRIED=new Set();
+ hit.forEach(t=>descend(t.id).forEach(k=>{
+  if(k.status==="Done"||k.deleted||shown.has(k.id))return;
+  shown.set(k.id,k);CARRIED.add(k.id)}));
+ const pool=[...shown.values()];
+ const ids=new Set(shown.keys());
  let roots=pool.filter(t=>!t.parent||!ids.has(t.parent));
  roots.sort(cmp(F.s1,F.s2,true));
+ roots=freezeOrder(roots);
  const L=$("list");L.textContent="";
  if(!roots.length){L.appendChild(el("div","empty",alive().length?"Nothing matches. Reset the filters, or add a task.":"Empty board. Hit Import at the bottom and choose your backup file."));}
  roots.forEach(t=>{L.appendChild(taskEl(t,false));
-  if(!COLL.has(t.id))kids(t.id).filter(k=>pool.includes(k)).sort(cmp(F.s1,F.s2,false))
+  if(!COLL.has(t.id))freezeOrder(kids(t.id).filter(k=>ids.has(k.id)).sort(cmp(F.s1,F.s2,false)))
    .forEach(k=>L.appendChild(taskEl(k,true)))});
  const dn=alive().filter(t=>t.status==="Done").sort((a,b)=>(b.done||"").localeCompare(a.done||""));
  const D=$("done");D.textContent="";
