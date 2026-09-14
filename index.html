@@ -119,6 +119,20 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--a11yOrange);outl
 .dhint{font-size:11px;color:var(--muted);font-style:italic}
 .dbar button{padding:5px 16px}
 @media(max-width:620px){.dhint{font-size:10px}}
+.linktools{display:none;gap:7px;margin:0 0 12px}
+.lgedit{flex:1;min-width:0;font:inherit;font-size:13px;font-weight:700;letter-spacing:.05em;
+ text-transform:uppercase;color:var(--ink,var(--teal));background:transparent;
+ border:1px dashed var(--line);border-radius:4px;padding:2px 6px}
+.lgtools{display:flex;gap:4px;flex:none}
+button.mini{padding:1px 7px;font-size:11px;line-height:1.6;border-radius:5px;font-weight:700}
+button.danger{border-color:#d08a84;color:#B3261E}
+.lnkgrid.editing a.lnk{cursor:grab;user-select:none;touch-action:none}
+a.lnk.ghosting{opacity:.28}
+.lnk.dragclone{position:fixed;z-index:9999;pointer-events:none;margin:0;opacity:.95;
+ box-shadow:0 8px 22px rgba(9,29,32,.35);transform:scale(1.03)}
+.lnk.addtile{border-style:dashed;color:var(--muted);text-align:center;font-weight:600;
+ background:transparent}
+.lnk.addtile:hover{color:var(--a11yOrange);border-color:var(--orange)}
 .chip.pausechip{border-color:var(--muted);color:var(--muted);font-style:italic}
 .chip.pausechip.on{background:var(--muted);color:var(--surface);border-color:var(--muted);font-style:normal}
 .chip:disabled{opacity:.32;cursor:default}
@@ -271,7 +285,11 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
  <div class="sub">Most recently finished first.</div>
  <div id="done" style="display:none"></div>
  <h2 id="hLinks" style="cursor:pointer">Launch Pad</h2>
- <div class="sub" id="linksSub">Static reference, grouped by how often you reach for them.</div>
+ <div class="sub" id="linksSub">Grouped by how often you reach for them.</div>
+ <div class="linktools" id="linkTools">
+  <button id="bLEdit">Edit links</button>
+  <button id="bLAddGroup">Add group</button>
+ </div>
  <div id="links"></div>
  <footer>
   <div>L.A.U.N.C.H. P.A.D. · Michigan Virtual AI Lab · <span id="bld"></span> · standalone</div>
@@ -288,6 +306,17 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
  <div id="syncbar" style="font-size:11.5px;color:var(--lightGray);font-style:italic;margin-top:8px"></div>
  <div id="nudge"></div>
 </div>
+<dialog id="dLink"><div class="dlg">
+ <h3 id="kTitle">Add link</h3>
+ <label><span class="lbl">Label</span><input type="text" id="kLabel" placeholder="What you'll recognise it by"></label>
+ <label><span class="lbl">URL</span><input type="text" id="kUrl" placeholder="https://…"></label>
+ <label><span class="lbl">Group</span><select id="kGroup"></select></label>
+ <div class="acts">
+  <button id="kDel" class="danger">Delete</button>
+  <button id="kCancel">Cancel</button>
+  <button id="kSave" class="pri">Save</button>
+ </div>
+</div></dialog>
 <dialog id="dRecur"><div class="dlg">
  <h3>Repeat this task</h3>
  <div class="sub" id="rWhat"></div>
@@ -1134,35 +1163,170 @@ $("iMerge").onclick=async()=>{const have=new Set(TASKS.map(t=>t.id));
 
 // links
 const MVC=["mv1","mv2","mv3","mv4"];   // dark teal · light teal · green · orange
-// LOPEN holds the groups you have opened. Anything not in it is collapsed — so a group
-// that shows up later (sync, import, new backup) arrives closed like everything else.
-let LPOPEN=true, LOPEN=new Set();
+// LOPEN holds the groups you have opened. Keyed by a stable id, not the name —
+// renaming a group used to silently collapse it.
+let LPOPEN=true, LOPEN=new Set(), LEDIT=false, LFOR=null;
+const gid=()=>"g"+Math.random().toString(36).slice(2,8);
+function linkMigrate(){let d=false;
+ LINKGROUPS.forEach(g=>{if(!g.id){g.id=gid();d=true}
+  g.items=(g.items||[]).map(i=>({l:i.l||"",u:i.u||""}))});
+ return d}
 function linkCount(){return LINKGROUPS.reduce((n,g)=>n+g.items.length,0)}
+async function linksSaved(){META.linksTouched=nowISO();await save();renderLinks()}
+
+/* First-Last-Invert-Play: siblings slide to their new spot instead of snapping. */
+function flip(nodes,mutate){
+ const first=new Map();nodes.forEach(n=>first.set(n,n.getBoundingClientRect()));
+ mutate();
+ nodes.forEach(n=>{const a=first.get(n),b=n.getBoundingClientRect();
+  const dx=a.left-b.left,dy=a.top-b.top;
+  if(!dx&&!dy)return;
+  n.style.transition="none";n.style.transform="translate("+dx+"px,"+dy+"px)";
+  requestAnimationFrame(()=>{n.style.transition="transform .18s ease";n.style.transform=""})})}
+
+/* Pointer events, not the HTML5 drag API — that one does nothing on touch. */
+function tileDrag(tile){
+ tile.onpointerdown=e=>{
+  if(!LEDIT||e.button)return;
+  const startX=e.clientX,startY=e.clientY;let moved=false,clone=null;
+  const box=tile.getBoundingClientRect();
+  const ox=startX-box.left, oy=startY-box.top;
+  tile.setPointerCapture(e.pointerId);
+  const move=ev=>{
+   if(!moved&&Math.hypot(ev.clientX-startX,ev.clientY-startY)<6)return;
+   if(!moved){moved=true;
+    clone=tile.cloneNode(true);clone.className+=" dragclone";
+    clone.style.width=box.width+"px";clone.style.height=box.height+"px";
+    document.body.appendChild(clone);tile.classList.add("ghosting")}
+   clone.style.left=(ev.clientX-ox)+"px";clone.style.top=(ev.clientY-oy)+"px";
+   clone.style.display="none";
+   const under=document.elementFromPoint(ev.clientX,ev.clientY);
+   clone.style.display="";
+   if(!under)return;
+   const overTile=under.closest?under.closest(".lnk"):null;
+   const overGrid=under.closest?under.closest(".lnkgrid"):null;
+   if(overTile&&overTile!==tile){
+    const r=overTile.getBoundingClientRect();
+    const after=(ev.clientX-r.left)>r.width/2;
+    const sibs=[...document.querySelectorAll(".lnk")];
+    flip(sibs,()=>overTile.parentNode.insertBefore(tile,after?overTile.nextSibling:overTile));
+   }else if(overGrid&&!overGrid.contains(tile)){
+    const sibs=[...document.querySelectorAll(".lnk")];
+    flip(sibs,()=>overGrid.appendChild(tile));
+   }};
+  const up=async ev=>{
+   tile.onpointermove=null;tile.onpointerup=null;tile.onpointercancel=null;
+   try{tile.releasePointerCapture(e.pointerId)}catch(_){}
+   if(clone)clone.remove();
+   tile.classList.remove("ghosting");
+   if(!moved){openLink(tile.dataset.g,+tile.dataset.i);return}
+   // rebuild the model from what the DOM now shows
+   const next=LINKGROUPS.map(g=>Object.assign({},g,{items:[]}));
+   const byId={};next.forEach(g=>byId[g.id]=g);
+   document.querySelectorAll(".lnkgrid").forEach(grid=>{
+    const g=byId[grid.dataset.g];if(!g)return;
+    grid.querySelectorAll(".lnk").forEach(t=>{
+     const src=LINKGROUPS.find(x=>x.id===t.dataset.g);
+     const it=src&&src.items[+t.dataset.i];
+     if(it)g.items.push(it)})});
+   LINKGROUPS=next;
+   await linksSaved();toast("Links reordered")};
+  tile.onpointermove=move;tile.onpointerup=up;tile.onpointercancel=up}}
+
+function openLink(groupId,idx){
+ LFOR={g:groupId,i:idx};
+ const g=LINKGROUPS.find(x=>x.id===groupId);
+ const it=(idx>=0&&g)?g.items[idx]:{l:"",u:""};
+ $("kLabel").value=it?it.l:"";$("kUrl").value=it?it.u:"";
+ const sel=$("kGroup");sel.textContent="";
+ LINKGROUPS.forEach(x=>{const o=el("option",null,x.name);o.value=x.id;
+  if(x.id===groupId)o.selected=true;sel.appendChild(o)});
+ $("kDel").style.display=idx>=0?"":"none";
+ $("kTitle").textContent=idx>=0?"Edit link":"Add link";
+ $("dLink").showModal()}
+
 function renderLinks(){
  const L=$("links");L.textContent="";
  $("hLinks").textContent="Launch Pad ("+linkCount()+") "+(LPOPEN?"▾":"▸");
  $("hLinks").setAttribute("aria-expanded",String(LPOPEN));
  $("linksSub").style.display=LPOPEN?"block":"none";
+ $("linkTools").style.display=LPOPEN?"flex":"none";
+ $("bLEdit").textContent=LEDIT?"Done editing":"Edit links";
+ $("bLEdit").className=LEDIT?"pri":"";
+ $("bLAddGroup").style.display=LEDIT?"":"none";
  if(!LPOPEN)return;
- if(!LINKGROUPS.length){L.appendChild(el("div","empty","Your Launch Pad links arrive with your backup. Hit Import below."));return}
+ if(!LINKGROUPS.length){
+  L.appendChild(el("div","empty",LEDIT?"No groups yet. Hit Add group to start."
+   :"Your Launch Pad links arrive with your backup, or hit Edit links to build them here."));return}
  LINKGROUPS.forEach((g,gi)=>{
-  const open=LOPEN.has(g.name);
+  const open=LOPEN.has(g.id)||LEDIT;
   const h=el("h3","lg "+MVC[gi%4]);
   h.appendChild(el("span","cv",open?"▾":"▸"));
-  h.appendChild(el("span","lgname",g.name));
+  if(LEDIT){
+   const nm=el("input","lgedit");nm.value=g.name;nm.setAttribute("aria-label","Group name");
+   nm.onclick=e=>e.stopPropagation();
+   nm.onchange=async()=>{g.name=nm.value.trim()||"Untitled";await linksSaved()};
+   h.appendChild(nm);
+  }else h.appendChild(el("span","lgname",g.name));
   h.appendChild(el("span","lgn",g.items.length));
+  if(LEDIT){
+   const tools=el("span","lgtools");
+   const mk=(txt,lab,fn)=>{const b=el("button","mini",txt);b.title=lab;
+    b.setAttribute("aria-label",lab);
+    b.onclick=e=>{e.stopPropagation();fn()};return b};
+   tools.appendChild(mk("▲","Move group up",async()=>{
+    if(!gi)return;LINKGROUPS.splice(gi-1,0,LINKGROUPS.splice(gi,1)[0]);await linksSaved()}));
+   tools.appendChild(mk("▼","Move group down",async()=>{
+    if(gi>=LINKGROUPS.length-1)return;LINKGROUPS.splice(gi+1,0,LINKGROUPS.splice(gi,1)[0]);await linksSaved()}));
+   tools.appendChild(mk("+","Add a link to this group",()=>openLink(g.id,-1)));
+   tools.appendChild(mk("×","Delete this group",async()=>{
+    if(!confirm('Delete "'+g.name+'" and its '+g.items.length+' link(s)?'))return;
+    LINKGROUPS=LINKGROUPS.filter(x=>x.id!==g.id);await linksSaved();toast("Group deleted")}));
+   h.appendChild(tools);
+  }
   h.setAttribute("role","button");h.setAttribute("tabindex","0");
   h.setAttribute("aria-expanded",String(open));
-  const tog=()=>{LOPEN.has(g.name)?LOPEN.delete(g.name):LOPEN.add(g.name);renderLinks()};
+  const tog=()=>{if(LEDIT)return;LOPEN.has(g.id)?LOPEN.delete(g.id):LOPEN.add(g.id);renderLinks()};
   h.onclick=tog;
   h.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();tog()}};
   L.appendChild(h);
   if(!open)return;
-  const gr=el("div","lnkgrid");
-  g.items.forEach((i,ii)=>{const a=el("a","lnk "+MVC[(gi+ii)%4],i.l);
-   a.href=i.u;a.target="_blank";a.rel="noopener";gr.appendChild(a)});
+  const gr=el("div","lnkgrid"+(LEDIT?" editing":""));gr.dataset.g=g.id;
+  g.items.forEach((i,ii)=>{
+   const a=el("a","lnk "+MVC[(gi+ii)%4],i.l);
+   a.dataset.g=g.id;a.dataset.i=ii;
+   if(LEDIT){a.href="#";a.title="Drag to reorder · click to edit";tileDrag(a);
+    a.onclick=e=>e.preventDefault()}
+   else{a.href=i.u;a.target="_blank";a.rel="noopener"}
+   gr.appendChild(a)});
+  if(LEDIT){const add=el("button","lnk addtile","+ link");
+   add.onclick=()=>openLink(g.id,-1);gr.appendChild(add)}
   L.appendChild(gr)})}
 $("hLinks").onclick=()=>{LPOPEN=!LPOPEN;renderLinks()};
+$("bLEdit").onclick=e=>{e.stopPropagation();LEDIT=!LEDIT;renderLinks()};
+$("bLAddGroup").onclick=async e=>{e.stopPropagation();
+ const n=prompt("Name for the new group");if(n===null)return;
+ LINKGROUPS.push({id:gid(),name:n.trim()||"Untitled",items:[]});
+ await linksSaved();toast("Group added")};
+$("kCancel").onclick=()=>$("dLink").close();
+$("kDel").onclick=async()=>{
+ if(!LFOR||LFOR.i<0)return;
+ const g=LINKGROUPS.find(x=>x.id===LFOR.g);if(!g)return;
+ if(!confirm('Delete "'+(g.items[LFOR.i]||{}).l+'"?'))return;
+ g.items.splice(LFOR.i,1);$("dLink").close();await linksSaved();toast("Link deleted")};
+$("kSave").onclick=async()=>{
+ const lab=$("kLabel").value.trim(), raw=$("kUrl").value.trim();
+ if(!lab||!raw){toast("Both a label and a URL, please");return}
+ // a bare domain in an href resolves relative to the page and goes nowhere
+ const url=/^[a-z][a-z0-9+.-]*:/i.test(raw)?raw:"https://"+raw.replace(/^\/+/,"");
+ const tgt=$("kGroup").value;
+ const from=LINKGROUPS.find(x=>x.id===LFOR.g), to=LINKGROUPS.find(x=>x.id===tgt);
+ if(!to){toast("Pick a group");return}
+ if(LFOR.i>=0&&from){
+  if(from===to)to.items[LFOR.i]={l:lab,u:url};
+  else{from.items.splice(LFOR.i,1);to.items.push({l:lab,u:url})}
+ }else to.items.push({l:lab,u:url});
+ $("dLink").close();await linksSaved();toast(LFOR.i>=0?"Link updated":"Link added")};
 
 function paintLogo(){
  const w=$("logo");if(!w)return;w.textContent="";
@@ -1302,7 +1466,10 @@ async function doSync(quiet){
    catch(e){throw new Error("Could not decrypt — passphrase differs from the device that wrote this")}}
   let out=TASKS,conflicts=[];
   if(remote&&remote.tasks){const m=mergeRows(TASKS,remote.tasks);out=m.rows;conflicts=m.conflicts;
-   if(remote.links&&remote.links.length&&!LINKGROUPS.length)LINKGROUPS=remote.links;
+   // links are editable now, so they need a real rule rather than "only if empty"
+   const rt=remote.meta&&remote.meta.linksTouched, lt=META.linksTouched;
+   if(remote.links&&((!LINKGROUPS.length&&remote.links.length)||(rt&&(!lt||rt>lt)))){
+    LINKGROUPS=remote.links;META.linksTouched=rt||nowISO();linkMigrate()}
    if(remote.meta&&Array.isArray(remote.meta.captured))
     META.captured=[...new Set(remote.meta.captured.concat(META.captured||[]))].slice(-400)}
   TASKS=out;
@@ -1350,6 +1517,7 @@ load().then(()=>{
  TASKS.forEach(t=>{const to=CATRENAME[t.cat];if(to){t.cat=to;moved++;dirty=true}});
  if(dirty)save();
  if(moved)setTimeout(()=>toast(moved+" item"+(moved===1?"":"s")+" moved to Unreviewed Intake"),900);
+ if(linkMigrate())save();   // stable group ids, so renaming can't lose open state
  TASKS.forEach(t=>{if(kids(t.id).length)COLL.add(t.id)});
  renderLinks();render()});
 </script></body></html>
