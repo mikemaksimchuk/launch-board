@@ -622,7 +622,6 @@ function matches(t){
  if(F.stat==="overdue"){const d=pd(t.due);if(!d||d>=TODAY)return false}
  if(F.stat==="verify"&&!t.verify)return false;
  if(F.stat==="frog"&&!t.frog)return false;
- if(F.stat==="dupe"&&!t.cluster)return false;
  if(F.stat==="stale"&&staleDays(t)<14)return false;
  if(F.stat==="soon"){const d=pd(t.due);if(!d||days(d,TODAY)>7)return false}
  if(F.q){const s=[t.title,t.notes,t.proj,t.raw].map(v=>v||"").join(" ").toLowerCase();
@@ -771,7 +770,6 @@ function taskEl(t,isKid){
  if(t.status!=="Open")m.appendChild(pill(t.status));
  const due=pd(t.due);
  if(due)m.appendChild(pill("due "+t.due,due<TODAY?"od":"due"));
- if(t.cluster)m.appendChild(pill("⧉ "+t.cluster+" ("+(t.clusterN||"")+")","cl"));
  if(t.effort)m.appendChild(pill(t.effort));
  if(t.prio)m.appendChild(pill("P: "+t.prio,"prio"+t.prio));
  if(t.series)m.appendChild(pill("↻ "+(t.recur||"recurring")+(t.seriesEnd?" · last":""),"recur"));
@@ -930,8 +928,7 @@ function render(){
   ["soon","Next 7 days",live.filter(t=>{const d=pd(t.due);return d&&days(d,TODAY)<=7}).length],
   ["overdue","Overdue",live.filter(t=>{const d=pd(t.due);return d&&d<TODAY}).length],
   ["stale","Gone quiet",live.filter(t=>staleDays(t)>=14).length],
-  ["verify","Needs a look",live.filter(t=>t.verify).length],
-  ["dupe","Duplicates",live.filter(t=>t.cluster).length]];
+  ["verify","Needs a look",live.filter(t=>t.verify).length]];
  const st=$("strip");st.textContent="";
  S.forEach(([k,lab,n])=>{const b=el("button","stat"+((F.stat===k||(k==="all"&&!F.stat))?" on":""));
   b.appendChild(el("b",null,String(n)));b.appendChild(el("span",null,lab));
@@ -1066,7 +1063,7 @@ $("aSave").onclick=async()=>{const t=$("aTitle").value.trim();if(!t){toast("Give
   folder:"",parent:$("aParent").value,prio:$("aPrio").value,pin:"",
   status:$("aStatus").value,start:$("aStart").value,due:$("aDue").value,done:"",assignee:"",
   people:"",created:nowISO(),src:"Added by hand",raw:t,xref:"",verify:false,notes:$("aNotes").value,
-  tier:$("aTier").value,cluster:"",effort:$("aEffort").value,touched:nowISO(),rawStatus:""});
+  tier:$("aTier").value,effort:$("aEffort").value,touched:nowISO(),rawStatus:""});
  await save();$("dAdd").close();render();toast("Added")};
 
 // ---- capture grammar: shared by pasted batches and voice/email capture ----
@@ -1118,7 +1115,7 @@ $("bCommit").onclick=async()=>{
  keep.forEach(it=>{n++;TASKS.push({id:"B-"+String(n).padStart(3,"0"),title:it.title,cat:it.cat,proj:"Inbox",
   folder:"",parent:"",deps:"",pin:"",status:"Open",start:"",due:it.due||"",done:"",assignee:"",people:"",
   created:nowISO(),src:"Batch upload",raw:it.title,xref:"",verify:true,notes:"From a pasted batch — check the details.",
-  tier:"",cluster:"",effort:"",touched:nowISO(),rawStatus:""})});
+  tier:"",effort:"",touched:nowISO(),rawStatus:""})});
  await save();$("dBatch").close();render();toast(keep.length+" added, flagged to review")};
 
 // export / import
@@ -1411,7 +1408,7 @@ async function pullInbox(){
    folder:"",parent:"",deps:"",pin:p.pin,status:"Open",start:"",due:p.due,done:"",assignee:"",people:"",
    created:nowISO(),src:"Captured via "+(it.via||"email"),raw:String(it.text),xref:"",verify:true,
    notes:"Captured "+String(it.at||nowISO()).slice(0,16).replace("T"," ")+" — check the details.",
-   tier:"",cluster:"",effort:"",touched:nowISO(),rawStatus:""})});
+   tier:"",effort:"",touched:nowISO(),rawStatus:""})});
  if(META.captured.length>400)META.captured=META.captured.slice(-400);
  return{n:added,ids:fresh.map(it=>it.id)}}
 
@@ -1473,7 +1470,8 @@ async function doSync(quiet){
    if(remote.meta&&Array.isArray(remote.meta.captured))
     META.captured=[...new Set(remote.meta.captured.concat(META.captured||[]))].slice(-400)}
   TASKS=out;
-  TASKS.forEach(t=>{const to=CATRENAME[t.cat];if(to)t.cat=to});   // rows from an un-updated device
+  TASKS.forEach(t=>{const to=CATRENAME[t.cat];if(to)t.cat=to;        // rows from an un-updated device
+   if(t.cluster!==undefined||t.clusterN!==undefined){delete t.cluster;delete t.clusterN}});
   const cap=await pullInbox();
   const payload=await seal({build:BUILD,tasks:TASKS,meta:META,links:LINKGROUPS});
   await gh("PUT",payload,sha);
@@ -1515,6 +1513,10 @@ load().then(()=>{
  // fall out of every filtered view. Runs on synced rows arriving later too.
  let moved=0;
  TASKS.forEach(t=>{const to=CATRENAME[t.cat];if(to){t.cat=to;moved++;dirty=true}});
+ // The duplicates tile never had detection behind it — nothing ever set this
+ // field, so the only values present are leftovers from an old backup.
+ TASKS.forEach(t=>{if(t.cluster!==undefined||t.clusterN!==undefined){
+  delete t.cluster;delete t.clusterN;dirty=true}});
  if(dirty)save();
  if(moved)setTimeout(()=>toast(moved+" item"+(moved===1?"":"s")+" moved to Unreviewed Intake"),900);
  if(linkMigrate())save();   // stable group ids, so renaming can't lose open state
