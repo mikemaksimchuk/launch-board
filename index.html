@@ -119,6 +119,9 @@ input:focus,select:focus,textarea:focus{outline:3px solid var(--a11yOrange);outl
 .dhint{font-size:11px;color:var(--muted);font-style:italic}
 .dbar button{padding:5px 16px}
 @media(max-width:620px){.dhint{font-size:10px}}
+.chip.pausechip{border-color:var(--muted);color:var(--muted);font-style:italic}
+.chip.pausechip.on{background:var(--muted);color:var(--surface);border-color:var(--muted);font-style:normal}
+.chip:disabled{opacity:.32;cursor:default}
 .task.carried{opacity:.62}
 .task.carried:hover{opacity:1}
 .task[draggable="true"]{cursor:grab}
@@ -408,7 +411,7 @@ const VERSION="v11";
 const BUILD="2026.08.26-1";
 const KEY="launchboard-"+BUILD;
 let LEGACY=null;
-let TASKS=[],META={lastExport:null,captured:[]},COLL=new Set(),F={cats:new Set(),tier:"",status:"",proj:"",q:"",s1:"heat",s2:"",stat:""},OPEN=new Set(),DRAG=null;
+let TASKS=[],META={lastExport:null,captured:[]},COLL=new Set(),F={cats:new Set(),tier:"",status:"",proj:"",q:"",s1:"heat",s2:"",stat:"",paused:false},OPEN=new Set(),DRAG=null;
 
 const $=id=>document.getElementById(id);
 const days=(a,b)=>Math.round((a-b)/864e5);
@@ -576,7 +579,12 @@ async function complete(t,val){
  toast(on?(n?`Done — and ${n} nested item${n>1?"s":""}`:"Done"):"Reopened")
 }
 
+// Paused is a status, not a category, but it behaves like a separate shelf:
+// hidden from every normal view, visible only when its chip is on. One predicate
+// so the lists, the carried sub-items and the counts can never disagree.
+function shelfOK(t){return F.paused?t.status==="Paused":t.status!=="Paused"}
 function matches(t){
+ if(!shelfOK(t))return false;
  if(F.cats.size&&!F.cats.has(t.cat))return false;
  if(F.tier&&t.tier!==F.tier)return false;
  if(F.status&&t.status!==F.status)return false;
@@ -881,8 +889,13 @@ function detailEl(t){
 function render(){
  TODAY=midnight();          // a session left open overnight used to keep yesterday's date
  HEATC=null; ROLLC=null;    // recompute heat and roll-ups once per render
- $("tag").textContent=alive().length+" items · "+alive().filter(t=>t.status!=="Done"&&t.status!=="Archived").length+" open";
- const live=alive().filter(t=>t.status!=="Done");
+ const onShelf=alive().filter(t=>t.status==="Paused").length;
+ const counted=alive().filter(t=>t.status!=="Paused");
+ $("tag").textContent=F.paused
+  ?onShelf+" paused · set aside, not counted"
+  :counted.length+" items · "+counted.filter(t=>t.status!=="Done"&&t.status!=="Archived").length+" open"
+    +(onShelf?" · "+onShelf+" paused":"");
+ const live=alive().filter(t=>t.status!=="Done"&&shelfOK(t));
  const S=[["all","Everything",live.length],["hot","Running hot",live.filter(t=>heat(t).n>=60).length],
   ["frog","Frogs",live.filter(t=>t.frog).length],
   ["soon","Next 7 days",live.filter(t=>{const d=pd(t.due);return d&&days(d,TODAY)<=7}).length],
@@ -899,9 +912,15 @@ function render(){
   const b=el("button","chip"+(F.cats.has(c)||!F.cats.size?" on":""),c);
   b.style.borderColor=bd;b.style.color=bd;
   b.style.background=F.cats.has(c)?bg:"var(--surface)";
+  b.disabled=F.paused;
   b.onclick=()=>{F.cats.has(c)?F.cats.delete(c):F.cats.add(c);render()};cw.appendChild(b)});
+ const pb=el("button","chip pausechip"+(F.paused?" on":""),"Paused ("+onShelf+")");
+ pb.title=F.paused?"Back to the active board":"Things set aside — hidden from every other view";
+ pb.setAttribute("aria-pressed",String(F.paused));
+ pb.onclick=()=>{F.paused=!F.paused;F.stat="";ORDER=null;render()};
+ cw.appendChild(pb);
  // project options track whichever categories are selected
- const projPool=alive().filter(t=>t.status!=="Done"&&(!F.cats.size||F.cats.has(t.cat)));
+ const projPool=alive().filter(t=>t.status!=="Done"&&shelfOK(t)&&(!F.cats.size||F.cats.has(t.cat)));
  const projs=[...new Set(projPool.map(t=>(t.proj||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
  if(F.proj&&projs.indexOf(F.proj)<0)F.proj="";
  const ps=$("fProj");ps.textContent="";
@@ -916,7 +935,7 @@ function render(){
  const shown=new Map(hit.map(t=>[t.id,t]));
  CARRIED=new Set();
  hit.forEach(t=>descend(t.id).forEach(k=>{
-  if(k.status==="Done"||k.deleted||shown.has(k.id))return;
+  if(k.status==="Done"||k.deleted||shown.has(k.id)||!shelfOK(k))return;
   shown.set(k.id,k);CARRIED.add(k.id)}));
  const pool=[...shown.values()];
  const ids=new Set(shown.keys());
@@ -924,7 +943,9 @@ function render(){
  roots.sort(cmp(F.s1,F.s2,true));
  roots=freezeOrder(roots);
  const L=$("list");L.textContent="";
- if(!roots.length){L.appendChild(el("div","empty",alive().length?"Nothing matches. Reset the filters, or add a task.":"Empty board. Hit Import at the bottom and choose your backup file."));}
+ if(!roots.length){L.appendChild(el("div","empty",F.paused?"Nothing is paused. Set an item's status to Paused to shelve it here."
+   :alive().length?"Nothing matches. Reset the filters, or add a task."
+   :"Empty board. Hit Import at the bottom and choose your backup file."));}
  roots.forEach(t=>{L.appendChild(taskEl(t,false));
   if(!COLL.has(t.id))freezeOrder(kids(t.id).filter(k=>ids.has(k.id)).sort(cmp(F.s1,F.s2,false)))
    .forEach(k=>L.appendChild(taskEl(k,true)))});
@@ -966,7 +987,8 @@ function render(){
 // filters
 ["fTier","fStatus","aTier","aStatus","aCat","bCat","aEffort"].forEach(id=>{});
 TIERS.forEach(t=>{const o=el("option",null,t);o.value=t;$("fTier").appendChild(o)});
-STATUSES.forEach(s=>{const o=el("option",null,s);o.value=s;$("fStatus").appendChild(o)});
+// Paused has its own chip now; leaving it here would be a filter that always returns nothing.
+STATUSES.filter(s=>s!=="Paused").forEach(s=>{const o=el("option",null,s);o.value=s;$("fStatus").appendChild(o)});
 Object.keys(CATS).forEach(c=>{[$("aCat"),$("bCat")].forEach(sel=>{const o=el("option",null,c);o.value=c;sel.appendChild(o)})});
 TIERS.concat([""]).forEach(t=>{const o=el("option",null,t||"— none —");o.value=t;$("aTier").appendChild(o)});
 STATUSES.forEach(s=>{const o=el("option",null,s);o.value=s;$("aStatus").appendChild(o)});
@@ -986,7 +1008,7 @@ $("rSave").onclick=async()=>{
   old.forEach(x=>{x.deleted=nowISO();x.touched=x.deleted})}
  await makeRecurring(t,$("rKind").value,+$("rMonths").value)};
 
-$("bClear").onclick=()=>{F={cats:new Set(),tier:"",status:"",proj:"",q:"",s1:"heat",s2:"",stat:""};
+$("bClear").onclick=()=>{F={cats:new Set(),tier:"",status:"",proj:"",q:"",s1:"heat",s2:"",stat:"",paused:false};ORDER=null;
  $("q").value="";$("fTier").value="";$("fStatus").value="";$("fProj").value="";
  $("sort1").value="heat";$("sort2").value="";render()};
 $("hDone").onclick=()=>{const d=$("done");d.style.display=d.style.display==="none"?"flex":"none";
