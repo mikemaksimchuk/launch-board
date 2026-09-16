@@ -656,14 +656,27 @@ const CATORDER=Object.keys(CATS);
 // While a row is expanded its sort keys are changing under you, so re-sorting
 // on every keystroke makes the row you are editing jump away. Freeze the order
 // for as long as anything is open and re-sort once it closes.
+// One frozen map PER LIST. A single shared map was overwritten by each group of
+// children as it rendered, so by the time a row was opened the roots were being
+// ranked against a handful of unrelated child ids — and the whole board
+// collapsed to alphabetical-by-id. Scope keys keep the lists independent.
 let ORDER=null;
-function freezeOrder(list){
- if(!OPEN.size){ORDER=new Map(list.map((t,i)=>[t.id,i]));return list}
- if(!ORDER)ORDER=new Map(list.map((t,i)=>[t.id,i]));
- const far=ORDER.size+1000;
+function freezeOrder(scope,list){
+ if(!OPEN.size){
+  if(!ORDER)ORDER=new Map();
+  ORDER.set(scope,new Map(list.map((t,i)=>[t.id,i])));
+  return list}
+ if(!ORDER)ORDER=new Map();
+ let m=ORDER.get(scope);
+ if(!m){m=new Map(list.map((t,i)=>[t.id,i]));ORDER.set(scope,m)}
+ const far=m.size+1000;
  return list.slice().sort((a,b)=>
-   (ORDER.has(a.id)?ORDER.get(a.id):far)-(ORDER.has(b.id)?ORDER.get(b.id):far)
+   (m.has(a.id)?m.get(a.id):far)-(m.has(b.id)?m.get(b.id):far)
    || String(a.id).localeCompare(String(b.id)))}
+
+// Anything the user does on purpose to change the order must thaw it. Only edits
+// made inside an open row should leave the list where it is.
+function refilter(){ORDER=null;render()}
 
 let HEATC=null;
 function heatOf(t){
@@ -956,18 +969,18 @@ function render(){
  const st=$("strip");st.textContent="";
  S.forEach(([k,lab,n])=>{const b=el("button","stat"+((F.stat===k||(k==="all"&&!F.stat))?" on":""));
   b.appendChild(el("b",null,String(n)));b.appendChild(el("span",null,lab));
-  b.onclick=()=>{F.stat=k==="all"?"":k;render()};st.appendChild(b)});
+  b.onclick=()=>{F.stat=k==="all"?"":k;refilter()};st.appendChild(b)});
  const cw=$("cats");cw.textContent="";
  Object.keys(CATS).forEach(c=>{const[bd,bg]=catColors(c);
   const b=el("button","chip"+(F.cats.has(c)||!F.cats.size?" on":""),c);
   b.style.borderColor=bd;b.style.color=bd;
   b.style.background=F.cats.has(c)?bg:"var(--surface)";
   b.disabled=F.paused;
-  b.onclick=()=>{F.cats.has(c)?F.cats.delete(c):F.cats.add(c);render()};cw.appendChild(b)});
+  b.onclick=()=>{F.cats.has(c)?F.cats.delete(c):F.cats.add(c);refilter()};cw.appendChild(b)});
  const pb=el("button","chip pausechip"+(F.paused?" on":""),"Paused ("+onShelf+")");
  pb.title=F.paused?"Back to the active board":"Things set aside — hidden from every other view";
  pb.setAttribute("aria-pressed",String(F.paused));
- pb.onclick=()=>{F.paused=!F.paused;F.stat="";ORDER=null;render()};
+ pb.onclick=()=>{F.paused=!F.paused;F.stat="";refilter()};
  cw.appendChild(pb);
  // project options track whichever categories are selected
  const projPool=alive().filter(t=>t.status!=="Done"&&shelfOK(t)&&(!F.cats.size||F.cats.has(t.cat)));
@@ -977,6 +990,8 @@ function render(){
  const o0=el("option",null,projs.length?"All projects":"No projects yet");o0.value="";ps.appendChild(o0);
  projs.forEach(v=>{const o=el("option",null,v);o.value=v;if(F.proj===v)o.selected=true;ps.appendChild(o)});
  ps.disabled=!projs.length;
+ // This had no change handler, so picking a project did nothing at all.
+ ps.onchange=e=>{F.proj=e.target.value;refilter()};
 
  // Two rules: a matching parent brings its whole sub-tree along even where the
  // children don't match, and a matching child still surfaces on its own when its
@@ -991,13 +1006,13 @@ function render(){
  const ids=new Set(shown.keys());
  let roots=pool.filter(t=>!t.parent||!ids.has(t.parent));
  roots.sort(cmp(F.s1,F.s2,true));
- roots=freezeOrder(roots);
+ roots=freezeOrder("roots",roots);
  const L=$("list");L.textContent="";
  if(!roots.length){L.appendChild(el("div","empty",F.paused?"Nothing is paused. Set an item's status to Paused to shelve it here."
    :alive().length?"Nothing matches. Reset the filters, or add a task."
    :"Empty board. Hit Import at the bottom and choose your backup file."));}
  roots.forEach(t=>{L.appendChild(taskEl(t,false));
-  if(!COLL.has(t.id))freezeOrder(kids(t.id).filter(k=>ids.has(k.id)).sort(cmp(F.s1,F.s2,false)))
+  if(!COLL.has(t.id))freezeOrder("kids:"+t.id,kids(t.id).filter(k=>ids.has(k.id)).sort(cmp(F.s1,F.s2,false)))
    .forEach(k=>L.appendChild(taskEl(k,true)))});
  const dn=alive().filter(t=>t.status==="Done").sort((a,b)=>(b.done||"").localeCompare(a.done||""));
  const D=$("done");D.textContent="";
@@ -1044,11 +1059,11 @@ TIERS.concat([""]).forEach(t=>{const o=el("option",null,t||"— none —");o.val
 STATUSES.forEach(s=>{const o=el("option",null,s);o.value=s;$("aStatus").appendChild(o)});
 [""].concat(EFFORTS).forEach(v=>{const o=el("option",null,v||"— none —");o.value=v;$("aEffort").appendChild(o)});
 [""].concat(PRIOS).forEach(v=>{const o=el("option",null,v||"— none —");o.value=v;$("aPrio").appendChild(o)});
-$("q").oninput=e=>{F.q=e.target.value;render()};
-$("fTier").onchange=e=>{F.tier=e.target.value;render()};
-$("fStatus").onchange=e=>{F.status=e.target.value;render()};
-$("sort1").onchange=e=>{F.s1=e.target.value;render()};
-$("sort2").onchange=e=>{F.s2=e.target.value;render()};
+$("q").oninput=e=>{F.q=e.target.value;refilter()};
+$("fTier").onchange=e=>{F.tier=e.target.value;refilter()};
+$("fStatus").onchange=e=>{F.status=e.target.value;refilter()};
+$("sort1").onchange=e=>{F.s1=e.target.value;refilter()};
+$("sort2").onchange=e=>{F.s2=e.target.value;refilter()};
 let RECUR_FOR=null;
 $("rCancel").onclick=()=>$("dRecur").close();
 $("rSave").onclick=async()=>{
