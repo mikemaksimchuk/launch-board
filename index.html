@@ -531,7 +531,28 @@ async function load(){
 async function save(){try{localStorage.setItem(KEY,JSON.stringify({tasks:TASKS,meta:META,links:LINKGROUPS}));queueSync()}
  catch(e){toast('Storage full or blocked — export a backup now')}}
 
+// Stored UTC, displayed local. Keeping the stored value in UTC is what lets two
+// devices in different zones compare timestamps during a sync merge; only the
+// display converts. toLocaleString handles DST from the OS, so EST and EDT both
+// come out right with no offset maths here.
 function nowISO(){return new Date().toISOString()}
+function fmtWhen(iso,withTime){
+ if(!iso)return "";
+ const d=new Date(iso);
+ if(isNaN(d))return String(iso);
+ const day=d.toLocaleDateString([],{year:"numeric",month:"short",day:"numeric"});
+ if(withTime===false)return day;
+ return day+", "+d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}
+function fmtAgo(iso){
+ if(!iso)return "";
+ const d=new Date(iso);if(isNaN(d))return "";
+ const mins=Math.round((Date.now()-d.getTime())/60000);
+ if(mins<1)return "just now";
+ if(mins<60)return mins+"m ago";
+ const h=Math.round(mins/60);
+ if(h<24)return h+"h ago";
+ const days=Math.round(h/24);
+ return days===1?"yesterday":days<30?days+"d ago":Math.round(days/30)+"mo ago"}
 function pt(v){if(!v)return null;const d=new Date(v.length<=10?v+"T00:00:00":v);return isNaN(d)?null:d}
 function touch(t){t.touched=nowISO()}
 
@@ -907,7 +928,10 @@ function detailEl(t){
  fld("Actions",r,true);
 
  ro("ID",t.id);ro("Source",t.src);ro("Wrike folder",t.folder);
- ro("Original status",t.rawStatus);ro("Last touched",(t.touched||"").replace("T"," ").slice(0,16));ro("Cross-ref",t.xref);
+ ro("Original status",t.rawStatus);
+ ro("Added",t.created?fmtWhen(t.created)+" · "+fmtAgo(t.created):"");
+ ro("Last touched",t.touched?fmtWhen(t.touched)+" · "+fmtAgo(t.touched):"");
+ ro("Cross-ref",t.xref);
  if(t.raw&&t.raw!==t.title){const f=el("div","fld");f.style.gridColumn="1/-1";
   f.appendChild(el("div","k","Raw source — never edited"));
   f.appendChild(el("div","raw",t.raw));w.appendChild(f)}
@@ -1384,6 +1408,37 @@ async function gh(method,body,sha,path,msg){
 // list flagged for review. Ids already consumed are recorded in META.captured so a
 // failed drain can never re-import the same item twice.
 const INBOX_PATH="inbox.json";
+const WIDGET_PATH="widget.json";
+
+/**
+ * A tiny plaintext digest for the phone widget. board.json stays encrypted —
+ * Scriptable can't decrypt it — so this carries only what a widget shows:
+ * titles, category, heat, due date. No notes, no projects, no history.
+ * Written only when the content actually changes, so sync doesn't spam commits.
+ */
+function widgetPayload(){
+ const live=alive().filter(t=>t.status!=="Done"&&t.status!=="Archived"&&t.status!=="Paused");
+ HEATC=null;
+ const row=t=>({t:String(t.title||"").slice(0,90),c:t.cat||"",h:heat(t).n,
+  d:t.due||"",o:!!(t.due&&days(pd(t.due),TODAY)<0)});
+ const frogs=live.filter(t=>t.frog).sort((a,b)=>heat(b).n-heat(a).n);
+ const pick=frogs.length?frogs:live.slice().sort((a,b)=>heat(b).n-heat(a).n);
+ return{v:1,at:nowISO(),mode:frogs.length?"frogs":"heat",
+  items:pick.slice(0,8).map(row),
+  counts:{frogs:frogs.length,open:live.length,
+   overdue:live.filter(t=>t.due&&days(pd(t.due),TODAY)<0).length}}}
+
+async function pushWidget(){
+ let body;
+ try{body=JSON.stringify(widgetPayload(),null,1)}catch(e){return}
+ let h=0;for(let i=0;i<body.length;i++)h=((h*33)^body.charCodeAt(i))>>>0;
+ const sig=h.toString(36)+":"+body.length;
+ if(META.widgetSig===sig)return;                 // nothing changed since last sync
+ try{
+  const cur=await gh("GET",null,null,WIDGET_PATH);
+  await gh("PUT",body,cur?cur.sha:null,WIDGET_PATH,"widget");
+  META.widgetSig=sig;
+ }catch(e){console.warn("widget push failed:",e)}}
 async function readInbox(){
  const r=await gh("GET",null,null,INBOX_PATH);
  if(!r)return{items:[],sha:null};
@@ -1407,7 +1462,7 @@ async function pullInbox(){
   TASKS.push({id:"V-"+String(n).padStart(3,"0"),title:p.title,cat:p.cat,proj:"Inbox",
    folder:"",parent:"",deps:"",pin:p.pin,status:"Open",start:"",due:p.due,done:"",assignee:"",people:"",
    created:nowISO(),src:"Captured via "+(it.via||"email"),raw:String(it.text),xref:"",verify:true,
-   notes:"Captured "+String(it.at||nowISO()).slice(0,16).replace("T"," ")+" — check the details.",
+   notes:"Captured "+fmtWhen(it.at||nowISO())+" — check the details.",
    tier:"",effort:"",touched:nowISO(),rawStatus:""})});
  if(META.captured.length>400)META.captured=META.captured.slice(-400);
  return{n:added,ids:fresh.map(it=>it.id)}}
@@ -1476,6 +1531,7 @@ async function doSync(quiet){
   const payload=await seal({build:BUILD,tasks:TASKS,meta:META,links:LINKGROUPS});
   await gh("PUT",payload,sha);
   if(cap.ids.length)await clearInbox(cap.ids);
+  await pushWidget();
   SYNC.lastSync=new Date().toISOString(); saveCfg(); syncing=false;
   localStorage.setItem(KEY,JSON.stringify({tasks:TASKS,meta:META,links:LINKGROUPS}));
   renderLinks(); render();
