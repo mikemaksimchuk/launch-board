@@ -296,7 +296,7 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
   <div class="mastbtns">
    <button id="bExp">Export backup</button>
    <button id="bCsv">Export CSV</button>
-   <button id="bImp">Import backup</button>
+   <button id="bImp">Import backup / CSV</button>
    <button id="bSync">Sync</button>
    <button id="bSyncCfg">Sync setup</button>
    <button id="bClearDone">Delete all completed</button>
@@ -333,7 +333,7 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
   final one prompts you to extend rather than letting the series quietly end.</div>
  <div class="acts"><button id="rCancel">Cancel</button><button id="rSave" class="pri">Create occurrences</button></div>
 </div></dialog>
-<input type="file" id="file" accept=".json" style="display:none">
+<input type="file" id="file" accept=".json,.csv,text/csv" style="display:none">
 <dialog id="dSync"><div class="dlg"><h3>Sync setup</h3>
  <div class="sub">Your board is encrypted on this device before it leaves. GitHub only ever stores an unreadable blob.
  The token and passphrase are saved on this device only &mdash; they are never sent anywhere except GitHub.</div>
@@ -1174,24 +1174,111 @@ $("bCsv").onclick=()=>{const k=["id","title","cat","proj","tier","status","start
  const esc=v=>'"'+String(v===undefined?"":v).replace(/"/g,'""')+'"';
  dl("launch-board.csv",[k.join(",")].concat(TASKS.map(t=>k.map(x=>esc(t[x])).join(","))).join("\n"),"text/csv");
  toast("CSV saved")};
+/**
+ * A real CSV reader, not a split on commas — titles and notes contain commas,
+ * quotes and line breaks. Handles RFC-4180 quoting, doubled quotes inside a
+ * field, and CR/LF or LF endings.
+ */
+function parseCSV(text){
+ const rows=[];let row=[],cell="",q=false;
+ text=text.replace(/^\uFEFF/,"");                 // Excel writes a BOM
+ for(let i=0;i<text.length;i++){
+  const c=text[i];
+  if(q){
+   if(c==='"'){ if(text[i+1]==='"'){cell+='"';i++} else q=false }
+   else cell+=c;
+  }else{
+   if(c==='"')q=true;
+   else if(c===","){row.push(cell);cell=""}
+   else if(c==="\n"){row.push(cell);cell="";rows.push(row);row=[]}
+   else if(c==="\r"){}
+   else cell+=c;
+  }}
+ if(cell.length||row.length){row.push(cell);rows.push(row)}
+ return rows.filter(r=>r.some(v=>String(v).trim()!==""))}
+
+/** Turn CSV rows into tasks, filling everything a flat file can't carry. */
+function csvToTasks(text){
+ const rows=parseCSV(text);
+ if(rows.length<2)throw new Error("No rows found");
+ const head=rows[0].map(h=>h.trim().toLowerCase());
+ if(head.indexOf("title")<0)throw new Error("No 'title' column — is this a Launch Board CSV?");
+ const at=n=>head.indexOf(n);
+ // Uniqueness only WITHIN the file. Deliberately not renumbering against the
+ // current board: Replace wipes it, so a clean re-import should keep its own
+ // ids. Merge already skips ids it has. Any id that does change is recorded so
+ // child rows can be repointed — renumbering without that silently breaks nesting.
+ const used=new Set(), remap={};
+ let auto=0;
+ const out=rows.slice(1).map(r=>{
+  const g=n=>{const i=at(n);return i<0?"":String(r[i]==null?"":r[i]).trim()};
+  const orig=g("id");
+  let id=orig;
+  if(!id||used.has(id)){
+   do{auto++;id="C-"+String(auto).padStart(3,"0")}while(used.has(id));
+   if(orig)remap[orig]=id}
+  used.add(id);
+  const created=g("created")||nowISO();
+  let cat=g("cat");if(CATRENAME[cat])cat=CATRENAME[cat];
+  return{id:id,title:g("title"),cat:cat,proj:g("proj"),
+   folder:"",parent:g("parent"),prio:g("prio"),pin:g("pin"),
+   status:g("status")||"Open",start:g("start"),due:g("due"),done:g("done"),
+   assignee:"",people:"",created:created,
+   src:g("src")||"CSV import",raw:g("raw")||g("title"),xref:"",
+   verify:/^(true|yes|1)$/i.test(g("verify")),
+   frog:/^(true|yes|1)$/i.test(g("frog")),        // CSV gives the STRING "false", which is truthy
+   notes:g("notes"),tier:g("tier"),effort:g("effort"),
+   recur:g("recur"),series:g("series"),seriesEnd:false,
+   touched:g("touched")||created,                 // no column for it; created is the honest stand-in
+   rawStatus:""}}).filter(t=>t.title);
+ // repoint children of anything that had to be renumbered, then drop parents
+ // that point nowhere so the row renders at top level instead of vanishing
+ const ids=new Set(out.map(t=>t.id));
+ out.forEach(t=>{
+  if(t.parent&&remap[t.parent])t.parent=remap[t.parent];
+  if(t.parent&&!ids.has(t.parent))t.parent=""});
+ // the last occurrence of a series must be flagged or it ends with no prompt
+ const ser={};
+ out.forEach(t=>{if(t.series){(ser[t.series]=ser[t.series]||[]).push(t)}});
+ Object.values(ser).forEach(grp=>{
+  grp.sort((a,b)=>String(a.due||"").localeCompare(String(b.due||"")));
+  grp[grp.length-1].seriesEnd=true});
+ return out}
+
 let INCOMING=null;
 $("bImp").onclick=()=>$("file").click();
 $("file").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
- r.onload=()=>{try{const d=JSON.parse(r.result);
-  stageImport(d)}catch(x){toast("That file isn't a Launch Board backup")}};
+ const isCsv=/\.csv$/i.test(f.name)||f.type==="text/csv";
+ r.onload=()=>{
+  const txt=String(r.result);
+  if(isCsv){
+   try{stageImport({tasks:csvToTasks(txt),csv:true,name:f.name})}
+   catch(x){toast("Couldn't read that CSV — "+x.message)}
+   return}
+  try{stageImport(JSON.parse(txt))}
+  catch(x){
+   // a CSV saved with the wrong extension is a likely mistake, so try it
+   try{stageImport({tasks:csvToTasks(txt),csv:true,name:f.name})}
+   catch(y){toast("That file isn't a Launch Board backup or CSV")}}};
  r.readAsText(f);e.target.value=""};
 function stageImport(d){
  if(!d||!d.tasks||!Array.isArray(d.tasks)){toast("That isn't a Launch Board backup");return false}
  INCOMING=d;
  $("impInfo").textContent="That file holds "+d.tasks.length+" items"+(d.build?" from build "+d.build:"")+
-  ". You have "+TASKS.length+" now"+(d.build&&d.build!==BUILD?" on build "+BUILD+".":".");
+  ". You have "+TASKS.length+" now"+(d.build&&d.build!==BUILD?" on build "+BUILD+".":".")+
+  (d.csv?"  CSV carries the tasks only — your Launch Pad links, review flags and edit timestamps "+
+   "aren't in a spreadsheet, so Replace would drop them. Merge is the safer choice.":"");
  $("dImp").showModal();return true}
 $("bPaste").onclick=()=>{$("pText").value="";$("dPaste").showModal()};
 $("pCancel").onclick=()=>$("dPaste").close();
 $("pGo").onclick=()=>{try{const d=JSON.parse($("pText").value);
  if(stageImport(d))$("dPaste").close()}catch(e){toast("That isn't valid JSON")}};
 $("iCancel").onclick=()=>$("dImp").close();
-$("iReplace").onclick=async()=>{TASKS=INCOMING.tasks;META=INCOMING.meta||META;if(INCOMING.links)LINKGROUPS=INCOMING.links;await save();
+$("iReplace").onclick=async()=>{
+ if(INCOMING.csv&&LINKGROUPS.length&&
+    !confirm("This CSV has no Launch Pad links in it.\n\nReplace will clear your "+
+     linkCount()+" saved link(s). Merge keeps them. Continue with Replace?"))return;
+ TASKS=INCOMING.tasks;META=INCOMING.meta||META;if(INCOMING.links)LINKGROUPS=INCOMING.links;await save();
  $("dImp").close();LOPEN.clear();renderLinks();render();toast("Replaced")};
 $("iMerge").onclick=async()=>{const have=new Set(TASKS.map(t=>t.id));
  let n=0;INCOMING.tasks.forEach(t=>{if(!have.has(t.id)){TASKS.push(t);n++}});
