@@ -1682,7 +1682,7 @@ load().then(()=>{
  renderLinks();render()});
 </script>
 <!-- ============================================================
-     L.A.U.N.C.H. P.A.D. — tabs, Chat Finder, Maksimum Cluster-Files
+     L.A.U.N.C.H. P.A.D. — tabs, Chat Finder, Scratchpad
      Paste this whole block immediately before </body>.
      It edits no existing line. Delete it and you are back on v11.
 
@@ -1771,22 +1771,67 @@ border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin-bottom:8
 .lbxtbl td:nth-child(4):empty,.lbxtbl td:nth-child(5):empty{display:none}
 }
 
-/* ---- Maksimum Cluster-Files ---- */
-.lbxpad2{display:grid;gap:18px;grid-template-columns:1fr}
-@media(min-width:820px){.lbxpad2{grid-template-columns:268px 1fr}}
-.lbxfrogs{background:var(--surface2);border:1px solid var(--line);border-radius:8px;
-padding:14px 16px;align-self:start}
-.lbxfrogs h3{font-size:14px;font-weight:800;color:var(--darkTeal);
-border-bottom:2px solid var(--green);padding-bottom:6px;margin:0}
+/* ---- stand and deliver ---- */
+.lbxsadbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.lbxev{border:1px solid var(--line);border-radius:9px;margin-bottom:14px;background:var(--surface);
+  border-left:5px solid var(--accent,var(--teal))}
+.lbxev.past{opacity:.72}
+.lbxevh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 15px;cursor:pointer}
+.lbxevh:hover{background:var(--surface2)}
+.lbxevcv{flex:none;width:11px;font-size:11px;opacity:.8;color:var(--ink,var(--teal))}
+.lbxevt{font-size:15px;font-weight:800;color:var(--ink,var(--darkTeal));flex:1 1 auto;min-width:0}
+html[data-theme="dark"] .lbxevt{color:var(--text)}
+.lbxevd{font-size:12.5px;font-weight:700;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.lbxevn{flex:none;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;
+  background:var(--ink,var(--teal));color:var(--white)}
+.lbxevwhen{font-size:11.5px;font-style:italic;color:var(--muted);white-space:nowrap}
+.lbxevbody{padding:0 13px 13px}
+.lbxevbody .task{margin-bottom:5px}
+.lbxevtools{display:flex;gap:5px;flex:none}
+.lbxevempty{font-size:12.5px;color:var(--muted);padding:2px 2px 6px;font-style:italic}
+.lbxdonewrap{margin-top:9px;border-top:1px dashed var(--line);padding-top:9px}
+.lbxdonewrap summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);padding:3px 0}
+.lbxdonewrap summary:hover{color:var(--teal)}
+.lbxdonewrap .task{margin-top:5px;opacity:.68}
+.lbxpast{margin:22px 0 10px;font-size:12px;font-weight:800;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+.lbxevform{border:1px solid var(--line2);border-radius:9px;padding:14px 15px;margin-bottom:16px;
+  background:var(--surface2)}
+.lbxevform .row{display:grid;gap:10px;grid-template-columns:1fr;margin-bottom:10px}
+@media(min-width:700px){.lbxevform .row{grid-template-columns:2fr 1fr 1fr}}
+.lbxevform label{display:block;font-size:10.5px;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.lbxevform input{width:100%}
+.lbxevform .acts{display:flex;gap:8px;justify-content:flex-end}
+.pill.lbxevpill{background:var(--cream);color:#8a4a00;border-color:#f0d5b3}
+html[data-theme="dark"] .pill.lbxevpill{background:#2a1f14;color:#f0a05a;border-color:#5a4620}
+
+/* ---- cluster-files ---- */
+/* Stacked, not two columns: an expanded task row carries the full detail grid
+   (repeat(auto-fit,minmax(215px,1fr))) and needs the width. */
+.lbxpad2{display:block}
+.lbxfrogs{
+  background:var(--surface2); border:1px solid var(--line); border-radius:8px;
+  padding:14px 16px; margin-bottom:18px;
+}
+.lbxfrogs h3{
+  font-size:14px;font-weight:800;color:var(--darkTeal);
+  border-bottom:2px solid var(--green);padding-bottom:6px;margin:0 0 11px;
+}
 html[data-theme="dark"] .lbxfrogs h3{color:var(--text)}
-.lbxfrogs ul{margin:10px 0 0;padding:0;list-style:none}
-.lbxfrogs li{padding:7px 0 7px 22px;position:relative;font-size:13px;border-top:1px solid var(--line)}
-.lbxfrogs li:first-child{border-top:0}
-.lbxfrogs li::before{content:"\1F438";position:absolute;left:0;top:6px;font-size:13px}
-.lbxfrogs .none{color:var(--muted);font-size:12.5px;padding:9px 0 2px}
-#lbxpad{width:100%;min-height:320px;font-size:14.5px;line-height:1.65;padding:14px 15px;resize:vertical}
-.lbxpadbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px;
-font-size:12px;color:var(--muted)}
+.lbxfrogs .lbxhint{font-size:11.5px;color:var(--muted);font-weight:400;margin-left:8px}
+/* the rows are v11's own .task elements, so they style themselves */
+.lbxfrogs .task{margin-bottom:5px}
+.lbxfrogs .task:last-child{margin-bottom:0}
+.lbxfrogs .none{color:var(--muted);font-size:12.5px;padding:4px 0 2px}
+#lbxpad{width:100%;min-height:240px;font-size:14.5px;line-height:1.65;padding:14px 15px;resize:vertical}
+.lbxpadhead{font-size:14px;font-weight:800;color:var(--darkTeal);
+  border-bottom:2px solid var(--green);padding-bottom:6px;margin:0 0 11px}
+html[data-theme="dark"] .lbxpadhead{color:var(--text)}
+.lbxpadbar{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:10px;
+  font-size:12px;color:var(--muted);
+}
 .lbxpadbar .sp{flex:1 1 auto}
 </style>
 
@@ -1820,7 +1865,7 @@ function boardAdd(title,raw){
     title:title,cat:"Unreviewed Intake",proj:"",tier:"",status:"Open",
     start:"",due:"",effort:"",prio:"",parent:"",notes:"",
     created:now,touched:now,frog:false,pin:"",verify:false,
-    src:"Maksimum Cluster-Files sweep",raw:raw||title});
+    src:"Scratchpad sweep",raw:raw||title});
   return true;
 }
 
@@ -2005,7 +2050,7 @@ function readFile(f){if(!f)return;var r=new FileReader();
   r.readAsText(f)}
 
 /* ============================================================
-   Maksimum Cluster-Files
+   Scratchpad
    ============================================================ */
 var pad,saved,padN,frogs,timer=null;
 function lines(){return pad.value.split(/\r?\n/)
@@ -2017,13 +2062,32 @@ function stats(){var n=lines().length;
 function savePad(){var ok=s(K_PAD,pad.value);
   saved.textContent=ok?"Saved "+new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})
     :"Not saved \u2014 storage blocked"}
+/* Render each frog with v11's OWN taskEl(), so the checkbox, the detail
+   editor, heat, pills and the frog toggle all behave exactly as they do on
+   the board — no second implementation to drift out of sync. Drag-to-nest is
+   switched off here: this tab is a worklist, and an accidental drop would
+   silently re-parent a task. */
 function drawFrogs(){
-  var list=boardFrogs();frogs.textContent="";
-  if(!list.length){frogs.appendChild(E("p","none",
-    "No frogs tagged. Tag one on the Tasks tab and it shows up here."));return}
-  var ul=E("ul");
-  list.forEach(function(t){ul.appendChild(E("li",null,t.title||"(untitled)"))});
-  frogs.appendChild(ul);
+  var list=boardFrogs();
+  frogs.textContent="";
+  if(!list.length){
+    frogs.appendChild(E("p","none",
+      "No frogs tagged. Hit the \uD83D\uDC38 on any task and it shows up here."));
+    return;
+  }
+  list.forEach(function(t){
+    var row=null;
+    try{ if(typeof taskEl==="function")row=taskEl(t,false); }catch(e){ row=null; }
+    if(row){
+      row.draggable=false;
+      row.removeAttribute("draggable");
+      row.ondragstart=null;row.ondragover=null;row.ondrop=null;row.ondragleave=null;
+      frogs.appendChild(row);
+    }else{
+      /* taskEl unavailable — degrade to a plain line rather than render nothing */
+      frogs.appendChild(E("p","none",t.title||"(untitled)"));
+    }
+  });
 }
 async function sweep(){
   var L=lines();if(!L.length)return;
@@ -2041,10 +2105,315 @@ async function sweep(){
 }
 
 /* ============================================================
+   4b.  Events  —  "Stand And Deliver"
+
+   Event records live in META.events, NOT in a private LBX key.
+   META is already part of save(), the backup export, the import
+   path and the GitHub sync payload, so events travel with the
+   board for free. A private key would have quietly left them out
+   of every backup you take.
+
+   A task is linked by an optional t.event holding an event id.
+   Unlinked tasks are untouched and behave exactly as before.
+   ============================================================ */
+var SADOPEN=new Set(), SUPPRESS_EV=false, K_SAD="LBX.sad.closed";
+
+function evAll(){
+  if(typeof META==="undefined"||!META)return[];
+  if(!Object.prototype.hasOwnProperty.call(META,"events")||!Array.isArray(META.events))META.events=[];
+  return META.events;
+}
+function evById(id){
+  if(!id)return null;
+  var a=evAll();
+  for(var i=0;i<a.length;i++)if(a[i].id===id)return a[i];
+  return null;
+}
+function evNewId(){return "E-"+Math.random().toString(36).slice(2,8)}
+function evDate(v){ try{ return (typeof pd==="function")?pd(v):null; }catch(e){ return null; } }
+/* an event is past only once its LAST day has gone by */
+function evEnd(e){ return evDate(e.end)||evDate(e.start); }
+function evIsPast(e){
+  var end=evEnd(e); if(!end)return false;
+  var today=(typeof TODAY!=="undefined"&&TODAY)?TODAY:new Date();
+  return end<today;
+}
+function evFmt(e){
+  var s=evDate(e.start), en=evDate(e.end);
+  var o={month:"short",day:"numeric"};
+  if(!s)return "no date set";
+  var a=s.toLocaleDateString([],Object.assign({year:"numeric"},o));
+  if(!en||en.getTime()===s.getTime())return a;
+  var sameYear=en.getFullYear()===s.getFullYear();
+  return s.toLocaleDateString([],o)+" – "+en.toLocaleDateString([],
+    sameYear?Object.assign({year:"numeric"},o):Object.assign({year:"numeric"},o));
+}
+function evCountdown(e){
+  var s=evDate(e.start); if(!s)return "";
+  var today=(typeof TODAY!=="undefined"&&TODAY)?TODAY:new Date();
+  var d=Math.round((s-today)/864e5);
+  if(evIsPast(e))return "done";
+  if(d<0)return "under way";
+  if(d===0)return "today";
+  if(d===1)return "tomorrow";
+  if(d<=30)return "in "+d+" days";
+  return "in "+Math.round(d/7)+" weeks";
+}
+
+/* Events: soonest first. Anything already finished drops below, most
+   recent first, so the top of the tab is always what's coming. */
+function evSorted(){
+  var a=evAll().slice();
+  a.sort(function(x,y){
+    var px=evIsPast(x), py=evIsPast(y);
+    if(px!==py)return px?1:-1;
+    var dx=evDate(x.start), dy=evDate(y.start);
+    if(!dx&&!dy)return String(x.title||"").localeCompare(String(y.title||""));
+    if(!dx)return 1;
+    if(!dy)return -1;
+    if(dx.getTime()===dy.getTime())return String(x.title||"").localeCompare(String(y.title||""));
+    return px ? dy-dx : dx-dy;      /* past runs newest-first */
+  });
+  return a;
+}
+
+function evTasks(id){
+  if(typeof alive!=="function")return[];
+  return alive().filter(function(t){return t.event===id});
+}
+function isDone(t){return t.status==="Done"||t.status==="Archived"}
+
+/* Within an event: hottest first, earliest due date breaks a tie,
+   and anything scoring zero heat (paused, or no signal at all) sinks
+   to the bottom rather than mixing in. */
+function evSortTasks(list){
+  return list.slice().sort(function(a,b){
+    var ha=0,hb=0;
+    try{ ha=heat(a).n; hb=heat(b).n; }catch(e){}
+    if((ha===0)!==(hb===0))return ha===0?1:-1;
+    if(ha!==hb)return hb-ha;
+    var da=evDate(a.due), db=evDate(b.due);
+    if(da&&db&&da.getTime()!==db.getTime())return da-db;
+    if(da&&!db)return -1;
+    if(!da&&db)return 1;
+    return String(a.title||"").localeCompare(String(b.title||""));
+  });
+}
+
+function evLoadClosed(){
+  try{ var r=g(K_SAD); if(r)SADOPEN=new Set(JSON.parse(r)); }catch(e){ SADOPEN=new Set(); }
+}
+function evSaveClosed(){
+  /* Array.prototype.slice.call(aSet) silently yields [] — a Set has no length.
+     That wrote an empty array every time and collapse state never persisted. */
+  try{ s(K_SAD,JSON.stringify(Array.from(SADOPEN))); }catch(e){}
+}
+
+async function evCommit(){
+  try{ if(typeof save==="function")await save(); }catch(e){}
+  try{ if(typeof render==="function")render(); }catch(e){}
+}
+
+function evAdd(title,start,end){
+  var a=evAll();
+  a.push({id:evNewId(),title:String(title||"Untitled event").trim()||"Untitled event",
+          start:start||"",end:end||"",created:(typeof nowISO==="function")?nowISO():""});
+  return a[a.length-1];
+}
+async function evDelete(ev){
+  var linked=evTasks(ev.id);
+  if(!confirm('Delete "'+ev.title+'"?'+(linked.length
+      ? "\n\n"+linked.length+" task"+(linked.length===1?"":"s")+" will be unlinked. The task"+
+        (linked.length===1?"":"s")+" themselves are NOT deleted."
+      : "")))return;
+  linked.forEach(function(t){ t.event=""; try{ if(typeof touch==="function")touch(t); }catch(e){} });
+  var a=evAll();
+  for(var i=a.length-1;i>=0;i--)if(a[i].id===ev.id)a.splice(i,1);
+  SADOPEN.delete(ev.id); evSaveClosed();
+  await evCommit();
+  say("Event deleted"+(linked.length?" — "+linked.length+" task"+(linked.length===1?"":"s")+" unlinked":""));
+}
+
+/* ---------- the panel ---------- */
+var sadWrap, sadForm, badgeSad=null, EDITING=null;
+
+function evFormOpen(ev){
+  EDITING=ev||null;
+  sadForm.hidden=false;
+  D("lbxevTitle").value=ev?ev.title:"";
+  D("lbxevStart").value=ev?(ev.start||""):"";
+  D("lbxevEnd").value=ev?(ev.end||""):"";
+  D("lbxevFormH").textContent=ev?"Edit event":"New event";
+  D("lbxevSave").textContent=ev?"Save changes":"Add event";
+  D("lbxevTitle").focus();
+}
+function evFormClose(){ EDITING=null; sadForm.hidden=true; }
+
+async function evFormSave(){
+  var t=D("lbxevTitle").value.trim(),
+      st=D("lbxevStart").value, en=D("lbxevEnd").value;
+  if(!t){ alert("Give the event a title."); D("lbxevTitle").focus(); return; }
+  if(st&&en&&en<st){ alert("The end date is before the start date."); return; }
+  if(EDITING){ EDITING.title=t; EDITING.start=st; EDITING.end=en; }
+  else { var ne=evAdd(t,st,en); SADOPEN.delete(ne.id); }
+  evFormClose();
+  await evCommit();
+  say(EDITING?"Event updated":"Event added");
+}
+
+function evRow(ev,idx){
+  var box=E("div","lbxev "+MVCLASS[idx%4]+(evIsPast(ev)?" past":""));
+  var open=!SADOPEN.has(ev.id);
+  var open_=evTasks(ev.id).filter(function(t){return !isDone(t)});
+  var done_=evTasks(ev.id).filter(isDone);
+
+  var h=E("div","lbxevh");
+  h.setAttribute("role","button");h.tabIndex=0;
+  h.setAttribute("aria-expanded",String(open));
+  h.appendChild(E("span","lbxevcv",open?"\u25BE":"\u25B8"));
+  h.appendChild(E("span","lbxevt",ev.title));
+  h.appendChild(E("span","lbxevd",evFmt(ev)));
+  var cd=evCountdown(ev); if(cd)h.appendChild(E("span","lbxevwhen",cd));
+  h.appendChild(E("span","lbxevn",String(open_.length)));
+
+  var tools=E("div","lbxevtools");
+  var ed=E("button","mini","Edit"); ed.type="button";
+  ed.onclick=function(e){e.stopPropagation();evFormOpen(ev)};
+  var dl=E("button","mini danger","Delete"); dl.type="button";
+  dl.onclick=function(e){e.stopPropagation();evDelete(ev)};
+  tools.appendChild(ed);tools.appendChild(dl);
+  h.appendChild(tools);
+
+  function toggle(){
+    if(SADOPEN.has(ev.id))SADOPEN.delete(ev.id); else SADOPEN.add(ev.id);
+    evSaveClosed(); drawSAD();
+  }
+  h.onclick=toggle;
+  h.onkeydown=function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle()}};
+  box.appendChild(h);
+
+  if(open){
+    var body=E("div","lbxevbody");
+    if(!open_.length&&!done_.length){
+      body.appendChild(E("p","lbxevempty",
+        "Nothing tied to this event yet. Open any task and pick it in the Event field."));
+    }
+    if(open_.length){
+      SUPPRESS_EV=true;
+      evSortTasks(open_).forEach(function(t){
+        var row=null;
+        try{ if(typeof taskEl==="function")row=taskEl(t,false); }catch(e){ row=null; }
+        if(row){
+          row.draggable=false;row.removeAttribute("draggable");
+          row.ondragstart=null;row.ondragover=null;row.ondrop=null;row.ondragleave=null;
+          body.appendChild(row);
+        }else body.appendChild(E("p","lbxevempty",t.title||"(untitled)"));
+      });
+      SUPPRESS_EV=false;
+    }
+    if(done_.length){
+      var det=E("details","lbxdonewrap");
+      var sm=E("summary",null,"Completed ("+done_.length+")");
+      det.appendChild(sm);
+      SUPPRESS_EV=true;
+      evSortTasks(done_).forEach(function(t){
+        var row=null;
+        try{ if(typeof taskEl==="function")row=taskEl(t,false); }catch(e){ row=null; }
+        if(row){
+          row.draggable=false;row.removeAttribute("draggable");
+          row.ondragstart=null;row.ondragover=null;row.ondrop=null;row.ondragleave=null;
+          det.appendChild(row);
+        }
+      });
+      SUPPRESS_EV=false;
+      body.appendChild(det);
+    }
+    box.appendChild(body);
+  }
+  return box;
+}
+
+var MVCLASS=["mv1","mv2","mv3","mv4"];
+
+function drawSAD(){
+  if(!sadWrap)return;
+  sadWrap.textContent="";
+  var list=evSorted();
+  if(!list.length){
+    var em=E("div","empty","No events yet. Add one, then tie tasks to it from the Event field on any task.");
+    sadWrap.appendChild(em);
+    if(badgeSad){badgeSad.hidden=true}
+    return;
+  }
+  var pastStarted=false, i=0;
+  list.forEach(function(ev){
+    if(evIsPast(ev)&&!pastStarted){
+      pastStarted=true;
+      sadWrap.appendChild(E("div","lbxpast","Already happened"));
+    }
+    sadWrap.appendChild(evRow(ev,i++));
+  });
+  if(badgeSad){
+    var up=list.filter(function(e){return !evIsPast(e)}).length;
+    badgeSad.hidden=!up; badgeSad.textContent=String(up);
+  }
+}
+
+/* Injected into v11's detailEl output, placed just above the Actions row.
+   Writes through immediately like every other field in that editor. */
+function evInjectField(w,t){
+  if(!w||!t||w.querySelector("[data-lbxev]"))return;
+
+  var sel=E("select");
+  sel.setAttribute("data-lbxev","1");
+  sel.style.width="100%";
+  sel.setAttribute("aria-label","Event");
+
+  var list=evSorted();
+  var none=E("option",null,list.length
+    ? "\u2014 not tied to an event \u2014"
+    : "\u2014 no events yet, add one in Stand And Deliver \u2014");
+  none.value="";
+  sel.appendChild(none);
+
+  list.forEach(function(ev){
+    var o=E("option",null,ev.title+(ev.start?"  \u00b7  "+evFmt(ev):""));
+    o.value=ev.id;
+    if(t.event===ev.id)o.selected=true;
+    sel.appendChild(o);
+  });
+
+  /* A task pointing at a deleted event keeps its id and says so, rather than
+     silently snapping back to "none" and losing the link without telling you. */
+  if(t.event&&!evById(t.event)){
+    var orphan=E("option",null,"\u26A0 event no longer exists");
+    orphan.value=t.event; orphan.selected=true;
+    sel.insertBefore(orphan,sel.firstChild.nextSibling);
+  }
+
+  sel.onchange=async function(){
+    t.event=sel.value;
+    try{ if(typeof touch==="function")touch(t); }catch(e){}
+    await evCommit();
+  };
+
+  var f=E("div","fld");
+  f.appendChild(E("div","k","Event"));
+  f.appendChild(sel);
+
+  var target=null, flds=w.querySelectorAll(".fld");
+  for(var i=0;i<flds.length;i++){
+    var k=flds[i].querySelector(".k");
+    if(k&&k.textContent==="Actions"){target=flds[i];break}
+  }
+  if(target)w.insertBefore(f,target); else w.appendChild(f);
+}
+
+/* ============================================================
    Tabs — existing nodes are MOVED into panels, never rebuilt,
    so every id render() writes to still resolves.
    ============================================================ */
-var TABS=["tasks","links","finder","pad"];
+var TABS=["tasks","links","finder","pad","sad"];
 function show(name){
   TABS.forEach(function(t){
     var tab=D("lbxtab-"+t),p=D("lbxpanel-"+t);
@@ -2064,6 +2433,7 @@ function show(name){
     var lk=D("links"); if(lk)lk.style.display="";
   }
   if(name==="pad"){drawFrogs();stats()}
+  if(name==="sad"){drawSAD()}
   if(name==="finder"&&!loaded.hidden)q.focus();
 }
 
@@ -2082,13 +2452,15 @@ function boot(){
   var tabs=E("div","lbxtabs");
   tabs.setAttribute("role","tablist");
   tabs.setAttribute("aria-label","Launch Pad sections");
-  var LABELS={tasks:"Tasks",links:"Launch Pad",finder:"Chat Finder",pad:"Maksimum Cluster-Files"};
+  var LABELS={tasks:"Tasks",links:"Launch Pad",finder:"Chat Finder",
+               pad:"Maksim-um Cluster-Files",sad:"Stand And Deliver"};
   TABS.forEach(function(t){
     var b=E("button","lbxtab");
     b.id="lbxtab-"+t;b.type="button";b.setAttribute("role","tab");
     b.setAttribute("aria-controls","lbxpanel-"+t);b.setAttribute("aria-selected","false");
     b.appendChild(document.createTextNode(LABELS[t]));
     if(t==="finder"){var n=E("span","lbxn","0");n.id="lbxcount";n.hidden=true;b.appendChild(n)}
+    if(t==="sad"){var n2=E("span","lbxn","0");n2.id="lbxsadcount";n2.hidden=true;b.appendChild(n2)}
     b.onclick=function(){show(t)};
     tabs.appendChild(b)});
   tabs.addEventListener("keydown",function(e){
@@ -2105,7 +2477,7 @@ function boot(){
     p.tabIndex=0;p.hidden=true;
     foot?wrap.insertBefore(p,foot):wrap.appendChild(p);return p}
 
-  var pT=panel("tasks"),pL=panel("links"),pF=panel("finder"),pP=panel("pad");
+  var pT=panel("tasks"),pL=panel("links"),pF=panel("finder"),pP=panel("pad"),pS=panel("sad");
   [strip,bar,list,hDone,doneSub,done].forEach(function(n){if(n)pT.appendChild(n)});
   [hLinks,lSub,lTools,links].forEach(function(n){if(n)pL.appendChild(n)});
 
@@ -2159,17 +2531,46 @@ function boot(){
   +'<p class="lbxmeta" style="margin-top:9px">Column order doesn\'t matter, extra columns are ignored, headers match '
   +'case-insensitively, and aliases work: ai/platform for tool, tags for keywords, link for url.</p></details></div>';
 
-  /* ---- Maksimum Cluster-Files markup ---- */
+  /* ---- cluster-files markup ---- */
   pP.innerHTML=
-   '<div class="lbxpad2"><aside class="lbxfrogs"><h3>Today\'s frogs</h3><div id="lbxfrogs"></div></aside>'
-  +'<div><textarea id="lbxpad" placeholder="What actually has to happen today.&#10;&#10;One thing per line. Saves as you type." aria-label="Maksimum Cluster-Files"></textarea>'
+   '<div class="lbxpad2">'
+  +'<section class="lbxfrogs"><h3>Today\'s frogs'
+  +'<span class="lbxhint">full rows — tick one off, or click a title to open it</span></h3>'
+  +'<div id="lbxfrogs"></div></section>'
+  +'<section><h3 class="lbxpadhead">Notes</h3>'
+  +'<textarea id="lbxpad" placeholder="What actually has to happen today.&#10;&#10;One thing per line. Saves as you type." aria-label="Cluster-files notes"></textarea>'
   +'<div class="lbxpadbar"><span id="lbxsaved">&nbsp;</span><span class="sp"></span>'
   +'<span id="lbxpadn"></span><button id="lbxsweep" type="button">Sweep leftovers to task list</button></div>'
   +'<p class="lbxmeta" style="margin-top:12px">Sweep files every remaining line as a task under '
   +'<b>Unreviewed Intake</b>, then clears the pad. Lines starting with # are treated as headings and skipped.</p>'
-  +'</div></div>';
+  +'</section></div>';
+
+  /* ---- stand and deliver markup ---- */
+  pS.innerHTML=
+   '<div class="lbxsadbar">'
+  +'<button class="pri" id="lbxevNew" type="button">Add event</button>'
+  +'<span class="lbxmeta" style="margin:0">Events run soonest first. Inside each one, tasks sort by heat, '
+  +'then by due date when heat ties.</span></div>'
+  +'<div class="lbxevform" id="lbxevForm" hidden>'
+  +'<div class="lbxmeta" style="margin:0 0 10px"><b id="lbxevFormH" style="color:var(--darkTeal)">New event</b></div>'
+  +'<div class="row">'
+  +'<div><label for="lbxevTitle">Event title</label><input type="text" id="lbxevTitle" placeholder="Croswell-Lexington PD day"></div>'
+  +'<div><label for="lbxevStart">Start date</label><input type="date" id="lbxevStart"></div>'
+  +'<div><label for="lbxevEnd">End date (optional)</label><input type="date" id="lbxevEnd"></div>'
+  +'</div>'
+  +'<div class="acts"><button id="lbxevCancel" type="button">Cancel</button>'
+  +'<button class="pri" id="lbxevSave" type="button">Add event</button></div></div>'
+  +'<div id="lbxsad"></div>';
 
   /* ---- wire ---- */
+  sadWrap=D("lbxsad"); sadForm=D("lbxevForm"); badgeSad=D("lbxsadcount");
+  evLoadClosed();
+  D("lbxevNew").onclick=function(){ sadForm.hidden?evFormOpen(null):evFormClose() };
+  D("lbxevCancel").onclick=evFormClose;
+  D("lbxevSave").onclick=evFormSave;
+  D("lbxevTitle").onkeydown=function(e){ if(e.key==="Enter"){e.preventDefault();evFormSave()} };
+  D("lbxevForm").addEventListener("keydown",function(e){ if(e.key==="Escape")evFormClose() });
+
   q=D("lbxq");fTool=D("lbxtool");fProj=D("lbxproj");body=D("lbxbody");
   meta=D("lbxmeta");trunc=D("lbxtrunc");badge=D("lbxcount");
   loaded=D("lbxloaded");blank=D("lbxblank");
@@ -2211,6 +2612,52 @@ function boot(){
   stats();drawFrogs();
   if(st)saved.textContent="Restored from last session";
 
+  /* complete(), the detail editor and the frog toggle all end in render().
+     Wrap it so these panels repaint on the same cycle — otherwise ticking a
+     frog here would update TASKS and the board but leave this list stale,
+     which is exactly the kind of silent divergence that bites later.
+     Function declarations land on the global object, so his internal calls
+     to render() resolve through this wrapper too. */
+  if(typeof window.render==="function"){
+    var _render=window.render;
+    window.render=function(){
+      var out=_render.apply(this,arguments);
+      try{ if(frogs)drawFrogs(); }catch(e){}
+      try{ if(sadWrap)drawSAD(); }catch(e){}
+      return out;
+    };
+  }
+
+  /* The Event field is injected into v11's OWN detailEl() rather than
+     rebuilt, so it appears on every task row everywhere — the board, the
+     frogs list, and inside an event group — and inherits the same styling
+     and save-as-you-change behaviour as every other field. */
+  if(typeof window.detailEl==="function"){
+    var _detailEl=window.detailEl;
+    window.detailEl=function(t){
+      var w=_detailEl.apply(this,arguments);
+      try{ evInjectField(w,t); }catch(e){}
+      return w;
+    };
+  }
+
+  /* A small pill so a linked task is identifiable on the board itself.
+     Suppressed while rendering inside an event group, where it'd be noise. */
+  if(typeof window.taskEl==="function"){
+    var _taskEl=window.taskEl;
+    window.taskEl=function(t,isKid){
+      var d=_taskEl.apply(this,arguments);
+      try{
+        if(!SUPPRESS_EV&&t&&t.event){
+          var ev=evById(t.event);
+          var m=d.querySelector(".meta");
+          if(ev&&m)m.appendChild(E("span","pill lbxevpill","\u25C6 "+ev.title));
+        }
+      }catch(e){}
+      return d;
+    };
+  }
+
   /* "/" jumps to search — but never while typing in a field */
   document.addEventListener("keydown",function(e){
     if(e.key!=="/")return;
@@ -2221,6 +2668,13 @@ function boot(){
   restore();
   var last=g(K_TAB);
   show(TABS.indexOf(last)!==-1?last:"tasks");
+
+  /* His boot is `(async()=>{ await load(); … render() })()`, so it can finish
+     BEFORE this patch's DOMContentLoaded handler installs the wrappers — in
+     which case the first paint has no event pills and the tab badge is never
+     set. One repaint here makes the result independent of that ordering. */
+  try{ if(typeof window.render==="function")window.render(); }catch(e){}
+  try{ drawSAD(); }catch(e){}
 }
 
 LBX.show=show;LBX.loadCsv=loadCsv;LBX.build=build;LBX.safeUrl=safeUrl;
