@@ -1682,7 +1682,7 @@ load().then(()=>{
  renderLinks();render()});
 </script>
 <!-- ============================================================
-     L.A.U.N.C.H. P.A.D. — tabs, Chat Finder, Scratchpad
+     L.A.U.N.C.H. P.A.D. — tabs, Chat Finder, Maksimum Cluster-Files
      Paste this whole block immediately before </body>.
      It edits no existing line. Delete it and you are back on v11.
 
@@ -1771,7 +1771,7 @@ border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin-bottom:8
 .lbxtbl td:nth-child(4):empty,.lbxtbl td:nth-child(5):empty{display:none}
 }
 
-/* ---- scratchpad ---- */
+/* ---- Maksimum Cluster-Files ---- */
 .lbxpad2{display:grid;gap:18px;grid-template-columns:1fr}
 @media(min-width:820px){.lbxpad2{grid-template-columns:268px 1fr}}
 .lbxfrogs{background:var(--surface2);border:1px solid var(--line);border-radius:8px;
@@ -1820,7 +1820,7 @@ function boardAdd(title,raw){
     title:title,cat:"Unreviewed Intake",proj:"",tier:"",status:"Open",
     start:"",due:"",effort:"",prio:"",parent:"",notes:"",
     created:now,touched:now,frog:false,pin:"",verify:false,
-    src:"Scratchpad sweep",raw:raw||title});
+    src:"Maksimum Cluster-Files sweep",raw:raw||title});
   return true;
 }
 
@@ -2005,7 +2005,7 @@ function readFile(f){if(!f)return;var r=new FileReader();
   r.readAsText(f)}
 
 /* ============================================================
-   Scratchpad
+   Maksimum Cluster-Files
    ============================================================ */
 var pad,saved,padN,frogs,timer=null;
 function lines(){return pad.value.split(/\r?\n/)
@@ -2082,7 +2082,7 @@ function boot(){
   var tabs=E("div","lbxtabs");
   tabs.setAttribute("role","tablist");
   tabs.setAttribute("aria-label","Launch Pad sections");
-  var LABELS={tasks:"Tasks",links:"Launch Pad",finder:"Chat Finder",pad:"Scratchpad"};
+  var LABELS={tasks:"Tasks",links:"Launch Pad",finder:"Chat Finder",pad:"Maksimum Cluster-Files"};
   TABS.forEach(function(t){
     var b=E("button","lbxtab");
     b.id="lbxtab-"+t;b.type="button";b.setAttribute("role","tab");
@@ -2159,10 +2159,10 @@ function boot(){
   +'<p class="lbxmeta" style="margin-top:9px">Column order doesn\'t matter, extra columns are ignored, headers match '
   +'case-insensitively, and aliases work: ai/platform for tool, tags for keywords, link for url.</p></details></div>';
 
-  /* ---- scratchpad markup ---- */
+  /* ---- Maksimum Cluster-Files markup ---- */
   pP.innerHTML=
    '<div class="lbxpad2"><aside class="lbxfrogs"><h3>Today\'s frogs</h3><div id="lbxfrogs"></div></aside>'
-  +'<div><textarea id="lbxpad" placeholder="What actually has to happen today.&#10;&#10;One thing per line. Saves as you type." aria-label="Scratchpad"></textarea>'
+  +'<div><textarea id="lbxpad" placeholder="What actually has to happen today.&#10;&#10;One thing per line. Saves as you type." aria-label="Maksimum Cluster-Files"></textarea>'
   +'<div class="lbxpadbar"><span id="lbxsaved">&nbsp;</span><span class="sp"></span>'
   +'<span id="lbxpadn"></span><button id="lbxsweep" type="button">Sweep leftovers to task list</button></div>'
   +'<p class="lbxmeta" style="margin-top:12px">Sweep files every remaining line as a task under '
