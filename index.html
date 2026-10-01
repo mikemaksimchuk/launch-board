@@ -433,7 +433,8 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
-const VERSION="v11";
+const VERSION="v12";
+let LOADFAIL=false;
 // BUILD doubles as the localStorage key. Bumping it makes the board look for data
 // that isn't there and fall into the legacy-recovery path, so the visible version
 // is tracked separately.
@@ -526,6 +527,15 @@ async function load(){
    const pr={value:localStorage.getItem(prev)};
    if(pr&&pr.value){const d=JSON.parse(pr.value);
     if(d.tasks&&d.tasks.length)LEGACY={key:prev,tasks:d.tasks,meta:d.meta||{}}}}}catch(e){}
+ // A read that FAILED is not the same as a key that was never there. Seeding
+ // and saving on a failed read overwrites the real board with an empty one,
+ // which is unrecoverable. Only seed when the key genuinely does not exist.
+ let present=false;
+ try{present=localStorage.getItem(KEY)!==null}catch(e){present=true}
+ if(present){
+  TASKS=[];LOADFAIL=true;
+  setTimeout(()=>toast("Couldn't read the saved board — it has NOT been overwritten. Export a backup."),600);
+  return}
  TASKS=JSON.parse(JSON.stringify(SEED));await save()
 }
 async function save(){try{localStorage.setItem(KEY,JSON.stringify({tasks:TASKS,meta:META,links:LINKGROUPS}));queueSync()}
@@ -2902,6 +2912,47 @@ function evInjectField(w,t){
 }
 
 /* ============================================================
+   Release stamp + last-saved clock
+
+   BUMP THESE TWO TOGETHER ON EVERY DELIVERY. The version number
+   also lives in the core file as `const VERSION` — keep them in
+   step. BUILD is NOT a version: it is the localStorage key
+   ("launchboard-"+BUILD), frozen on the day the key was created,
+   and changing it would point the app at an empty key and orphan
+   the saved board. That is why the footer said August.
+   ============================================================ */
+var LBX_RELEASED="2026-09-30T23:55:00";
+var K_SAVED="LBX.lastsave";
+
+function stampWhen(iso,withTime){
+  var d=new Date(iso);
+  if(isNaN(d.getTime()))return "";
+  var today=new Date();
+  var sameDay=d.getFullYear()===today.getFullYear()&&
+              d.getMonth()===today.getMonth()&&
+              d.getDate()===today.getDate();
+  var time=d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+  if(sameDay&&withTime)return time;
+  var day=d.toLocaleDateString([],{month:"short",day:"numeric",year:"numeric"});
+  return withTime?(day+", "+time):day;
+}
+
+function stampFooter(){
+  var b=D("bld");
+  if(!b)return;
+  var parts=[];
+  parts.push((typeof VERSION!=="undefined"&&VERSION)?VERSION:"v12");
+  var rel=stampWhen(LBX_RELEASED,false);
+  if(rel)parts.push("released "+rel);
+  var ls=g(K_SAVED), when=ls?stampWhen(ls,true):"";
+  parts.push(when?("saved "+when):"not saved yet");
+  b.textContent=parts.join(" \u00b7 ");
+  /* the storage key stays reachable for debugging without cluttering the line */
+  b.title="storage key: launchboard-"+((typeof BUILD!=="undefined")?BUILD:"?")+
+          "  \u2014  frozen deliberately; changing it would orphan the saved board";
+}
+
+/* ============================================================
    Tabs — existing nodes are MOVED into panels, never rebuilt,
    so every id render() writes to still resolves.
    ============================================================ */
@@ -3163,6 +3214,20 @@ function boot(){
     };
   }
 
+  /* Record when the board was actually written, and repaint the footer.
+     save() is async and his code calls it both awaited and bare, so hang the
+     repaint off the resolved promise and hand the original back untouched. */
+  if(typeof window.save==="function"){
+    var _save=window.save;
+    window.save=function(){
+      var r=_save.apply(this,arguments);
+      try{ s(K_SAVED,new Date().toISOString()); }catch(e){}
+      try{ Promise.resolve(r).then(function(){ try{stampFooter()}catch(e){} },
+                                   function(){ try{stampFooter()}catch(e){} }); }catch(e){}
+      return r;
+    };
+  }
+
   /* A small pill so a linked task is identifiable on the board itself.
      Suppressed while rendering inside an event group, where it'd be noise. */
   if(typeof window.taskEl==="function"){
@@ -3197,10 +3262,11 @@ function boot(){
      set. One repaint here makes the result independent of that ordering. */
   try{ if(typeof window.render==="function")window.render(); }catch(e){}
   try{ drawSAD(); }catch(e){}
+  try{ stampFooter(); }catch(e){}
 }
 
 LBX.show=show;LBX.loadCsv=loadCsv;LBX.build=build;LBX.safeUrl=safeUrl;
-LBX.items=function(){return ITEMS};LBX.simScore=simScore;LBX.simScan=simScan;LBX.padText=function(){return padToText()};
+LBX.items=function(){return ITEMS};LBX.simScore=simScore;LBX.simScan=simScan;LBX.released=LBX_RELEASED;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
 LBX.events=function(){return evAll()};
 LBX.dkey=dkey;LBX.parseDelim=parseDelim;LBX.refreshFrogs=function(){if(frogs)drawFrogs()};
 
