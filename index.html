@@ -1824,6 +1824,42 @@ html[data-theme="dark"] .lbxfrogs h3{color:var(--text)}
 .lbxfrogs .task{margin-bottom:5px}
 .lbxfrogs .task:last-child{margin-bottom:0}
 .lbxfrogs .none{color:var(--muted);font-size:12.5px;padding:4px 0 2px}
+/* duplicate review */
+.lbxdupdlg{border:1px solid var(--line);border-radius:12px;padding:0;max-width:660px;width:92vw;
+  background:var(--surface);color:var(--text)}
+.lbxdupdlg::backdrop{background:rgba(9,29,32,.45)}
+.lbxdupdlg h3{margin:0;padding:18px 20px 6px;font-size:17px;font-weight:800;color:var(--darkTeal)}
+html[data-theme="dark"] .lbxdupdlg h3{color:var(--text)}
+.lbxdupsub{margin:0;padding:0 20px 14px;font-size:12.5px;color:var(--muted);line-height:1.5}
+.lbxdupwrap{max-height:52vh;overflow-y:auto;padding:0 20px;display:flex;flex-direction:column;gap:11px}
+.lbxdupcard{border:1px solid var(--line);border-left:4px solid var(--midTeal);border-radius:8px;
+  padding:11px 13px;background:var(--surface2);transition:.12s}
+.lbxdupcard.sure{border-left-color:var(--orange)}
+.lbxdupcard.skipping{opacity:.62}
+.lbxdupnew,.lbxdupold{display:flex;gap:9px;align-items:baseline;margin-bottom:5px}
+.lbxduptag{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--white);background:var(--teal);border-radius:20px;padding:2px 8px;white-space:nowrap}
+.lbxdupold .lbxduptag{background:var(--muted)}
+.lbxdupold .lbxduptag.within{background:var(--a11yOrange)}
+.lbxduptext{font-size:13.5px;line-height:1.4}
+.lbxdupold .lbxduptext{color:var(--muted)}
+.lbxdupcard.skipping .lbxdupnew .lbxduptext{text-decoration:line-through;color:var(--muted)}
+.lbxdupmeta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:8px 0 10px}
+.lbxdupscore{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--teal)}
+.lbxdupscore.sure{color:var(--a11yOrange)}
+.lbxdupchoice{display:flex;gap:16px;border-top:1px solid var(--line);padding-top:9px}
+.lbxdupopt{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;cursor:pointer}
+.lbxdupopt input{margin:0;cursor:pointer}
+.lbxdupacts{display:flex;gap:9px;justify-content:space-between;flex-wrap:wrap;
+  padding:16px 20px;margin-top:14px;border-top:1px solid var(--line)}
+.lbxdupbulk,.lbxdupgo{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:620px){
+.lbxdupacts{flex-direction:column-reverse}
+.lbxdupbulk,.lbxdupgo{justify-content:stretch}
+.lbxdupgo button{flex:1}
+}
+
 /* checklist rows */
 #lbxlist{border:1px solid var(--line);border-radius:8px;background:var(--surface);
   padding:6px 8px;min-height:64px}
@@ -2255,38 +2291,246 @@ function drawFrogs(){
     }
   });
 }
+/* ============================================================
+   Near-duplicate check, run at sweep time.
+
+   Offline and deterministic: no API, no key, nothing to fail when
+   you are on a plane. Two scorers, best of the two —
+
+     tokens   Dice over meaningful words. Catches reordering and
+              filler: "email Thomas re: swag" vs "email Thomas
+              about the swag order".
+     trigrams Dice over 3-character shingles. Catches typos,
+              plurals and partial words that token overlap misses.
+
+   What it will NOT catch is thematic similarity — "Update CAC
+   website" and "Check on the NCME website work" share one word and
+   score near zero. Lexical matching cannot see that they are both
+   website work. It catches restatement, which is the actual failure
+   mode when you dictate the same thing twice.
+   ============================================================ */
+var SIM_FLAG=0.35,        /* surface it for review                 */
+    SIM_SURE=0.75,        /* almost certainly the same thing       */
+    SIM_SHORT=0.60,       /* bar for very short lines              */
+    SIM_DIVERGE=0.90;     /* below this, a rare-word clash vetoes  */
+
+var STOP=("a about an and are as at be but by for from get go had has have i if in into is it "+
+  "its me my need of on or our out over re should so than that the their then there these they "+
+  "this to up us was we were what when which who will with would you your").split(" ")
+  .reduce(function(o,w){o[w]=1;return o},Object.create(null));
+
+function simTokens(v){
+  return String(v||"").toLowerCase()
+    .replace(/[^a-z0-9\s]+/g," ")
+    .split(/\s+/)
+    .filter(function(w){return w.length>1&&!STOP[w]});
+}
+/* Trigrams are built from the MEANINGFUL words, not the raw string.
+   Built from raw text, "call the plumber about the leak" and "Email Thomas
+   about the swag order" share enough of "about the" to clear the threshold
+   on filler alone. Stripping stopwords first kills that whole class of
+   false positive while keeping the typo tolerance trigrams are here for. */
+function simTri(v){
+  var t=" "+simTokens(v).join(" ")+" ";
+  var set=new Set();
+  for(var i=0;i+3<=t.length;i++)set.add(t.slice(i,i+3));
+  return set;
+}
+function simDice(a,b){
+  if(!a.size||!b.size)return 0;
+  var n=0;
+  a.forEach(function(x){if(b.has(x))n++});
+  return (2*n)/(a.size+b.size);
+}
+function simScore(a,b){
+  var ta=simTokens(a), tb=simTokens(b);
+  var tok=simDice(new Set(ta),new Set(tb));
+  var tri=simDice(simTri(a),simTri(b));
+  return {n:Math.max(tok,tri),tok:tok,tri:tri,na:ta.length,nb:tb.length};
+}
+
+/* How many task titles each word shows up in. A word in one or two
+   titles is distinctive — a district name, a person, a place. */
+function simDF(list){
+  var df=Object.create(null);
+  list.forEach(function(t){
+    new Set(simTokens(t.title)).forEach(function(w){df[w]=(df[w]||0)+1});
+  });
+  return df;
+}
+/* "confirm COOR dates with Karle" vs "confirm Lapeer dates with Karle"
+   overlaps 81% and is completely different work. If EACH side owns a
+   distinctive word the other lacks, that is a clash.
+
+   Calibrated against real titles: every true restatement tested had the
+   pad line as a SUBSET of the task title (you dictate it shorter), so it
+   owns no word of its own and never clashes. The veto therefore applies
+   right up to 0.90 without costing a single genuine catch. Above that the
+   strings are near-identical and a clash is not credible anyway. */
+function simNums(v){
+  var m=String(v||"").match(/\d+/g);
+  return m?new Set(m):new Set();
+}
+function simClash(a,b,df){
+  /* Different numbers, same shape: "Quick Bites #1" vs "#2", "day 1" vs
+     "day 2". Only decisive when BOTH sides carry a number, so a dictated
+     line with no number still matches its numbered task. */
+  var na=simNums(a), nb=simNums(b);
+  if(na.size&&nb.size){
+    var same=false;
+    na.forEach(function(x){if(nb.has(x))same=true});
+    if(!same)return true;
+  }
+  /* A distinctive word must be one the BOARD knows (df 1–2): a district, a
+     person, a place. A word with df 0 is simply new vocabulary, not evidence
+     that two lines are about different things — counting it made every word
+     look rare whenever the board was small and vetoed real matches. */
+  var A=new Set(simTokens(a)), B=new Set(simTokens(b)), aOnly=0, bOnly=0;
+  A.forEach(function(w){var d=df[w]||0; if(!B.has(w)&&d>=1&&d<=2)aOnly++});
+  B.forEach(function(w){var d=df[w]||0; if(!A.has(w)&&d>=1&&d<=2)bOnly++});
+  return aOnly>0&&bOnly>0;
+}
+
+/* Compare every unchecked pad line against open tasks AND against the
+   other lines in the same sweep, so the same thing dictated twice in
+   one night is caught too. */
+function simScan(items,tasks){
+  var df=simDF(tasks), out=[], filed=[];
+  items.forEach(function(it){
+    var best=null;
+    function consider(title,ref,within){
+      var sc=simScore(it.t,title);
+      if(!sc.n)return;
+      var min=Math.min(sc.na,sc.nb);
+      var bar=(min<3)?SIM_SHORT:SIM_FLAG;      /* short lines need more */
+      if(sc.n<bar)return;
+      if(sc.n<SIM_DIVERGE&&simClash(it.t,title,df))return;
+      if(!best||sc.n>best.score)best={score:sc.n,title:title,ref:ref,within:within};
+    }
+    tasks.forEach(function(t){consider(t.title,t,false)});
+    filed.forEach(function(prev){consider(prev.t,prev,true)});
+    if(best)out.push({item:it,match:best,
+      sure:best.score>=SIM_SURE,
+      keep:best.score<SIM_SURE});   /* near-certain defaults to skip */
+    filed.push(it);
+  });
+  return out;
+}
+
+/* ---------- the review step ---------- */
+function simPct(n){return Math.round(n*100)+"%"}
+
+function simReview(flags,summary,onDone){
+  var dlg=document.createElement("dialog");
+  dlg.className="lbxdupdlg";
+
+  var h=E("h3",null,flags.length+(flags.length===1
+    ? " item looks like something you already have"
+    : " items look like things you already have"));
+  dlg.appendChild(h);
+  dlg.appendChild(E("p","lbxdupsub",summary));
+
+  var wrap=E("div","lbxdupwrap");
+  flags.forEach(function(f,ix){
+    var card=E("div","lbxdupcard"+(f.sure?" sure":""));
+
+    var top=E("div","lbxdupnew");
+    top.appendChild(E("span","lbxduptag","New"));
+    top.appendChild(E("span","lbxduptext",f.item.t));
+    card.appendChild(top);
+
+    var mid=E("div","lbxdupold");
+    mid.appendChild(E("span","lbxduptag"+(f.match.within?" within":""),
+      f.match.within?"Earlier in this sweep":"Already on the board"));
+    mid.appendChild(E("span","lbxduptext",f.match.title));
+    card.appendChild(mid);
+
+    var meta=E("div","lbxdupmeta");
+    meta.appendChild(E("span","lbxdupscore"+(f.sure?" sure":""),
+      simPct(f.match.score)+" match"+(f.sure?" \u00b7 near certain":"")));
+    if(!f.match.within&&f.match.ref){
+      var t=f.match.ref;
+      if(t.cat)meta.appendChild(E("span","pill",t.cat));
+      if(t.status&&t.status!=="Open")meta.appendChild(E("span","pill",t.status));
+      if(t.due)meta.appendChild(E("span","pill","due "+t.due));
+      try{ if(typeof heat==="function")meta.appendChild(E("span","pill","heat "+heat(t).n)); }catch(e){}
+    }
+    card.appendChild(meta);
+
+    var ch=E("div","lbxdupchoice");
+    [["file","File it anyway"],["skip","Skip it"]].forEach(function(o){
+      var id="lbxdup"+ix+o[0];
+      var lab=E("label","lbxdupopt");
+      var r=document.createElement("input");
+      r.type="radio";r.name="lbxdup"+ix;r.id=id;r.value=o[0];
+      r.checked=(o[0]==="file")===!!f.keep;
+      r.onchange=function(){f.keep=(r.value==="file");
+        card.classList.toggle("skipping",!f.keep)};
+      lab.appendChild(r);lab.appendChild(document.createTextNode(o[1]));
+      ch.appendChild(lab);
+    });
+    card.classList.toggle("skipping",!f.keep);
+    card.appendChild(ch);
+    wrap.appendChild(card);
+  });
+  dlg.appendChild(wrap);
+
+  var acts=E("div","lbxdupacts");
+  var all1=E("button",null,"File them all");
+  all1.type="button";
+  all1.onclick=function(){
+    flags.forEach(function(f,ix){f.keep=true;
+      var r=dlg.querySelector("#lbxdup"+ix+"file"); if(r)r.checked=true});
+    wrap.querySelectorAll(".lbxdupcard").forEach(function(c){c.classList.remove("skipping")});
+  };
+  var all0=E("button",null,"Skip them all");
+  all0.type="button";
+  all0.onclick=function(){
+    flags.forEach(function(f,ix){f.keep=false;
+      var r=dlg.querySelector("#lbxdup"+ix+"skip"); if(r)r.checked=true});
+    wrap.querySelectorAll(".lbxdupcard").forEach(function(c){c.classList.add("skipping")});
+  };
+  var cancel=E("button",null,"Cancel the sweep");
+  cancel.type="button";
+  cancel.onclick=function(){cleanup();onDone(null)};
+  var go=E("button","pri","Continue");
+  go.type="button";
+  go.onclick=function(){cleanup();onDone(flags)};
+
+  var left=E("div","lbxdupbulk");left.appendChild(all1);left.appendChild(all0);
+  var right=E("div","lbxdupgo");right.appendChild(cancel);right.appendChild(go);
+  acts.appendChild(left);acts.appendChild(right);
+  dlg.appendChild(acts);
+
+  function cleanup(){
+    try{dlg.close()}catch(e){}
+    if(dlg.parentNode)dlg.parentNode.removeChild(dlg);
+  }
+  /* Esc must cancel, never half-run the sweep */
+  dlg.addEventListener("cancel",function(e){e.preventDefault();cleanup();onDone(null)});
+
+  document.body.appendChild(dlg);
+  try{dlg.showModal()}catch(e){dlg.setAttribute("open","")}
+  return dlg;
+}
+
 /* Unchecked items become tasks. Checked ones are deliberately NOT filed —
    they are already done — but the sweep clears the WHOLE list either way, so
    the confirm spells that out rather than quietly binning them. */
-async function sweep(){
-  padFlush();
-  var total=ITEMS.length;
-  if(!total)return;
-  var toFile=padToFile(),
-      checked=ITEMS.filter(function(i){return i.d}).length,
-      heads=ITEMS.filter(function(i){return isHeadingLine(i.t)}).length;
+function sweepTail(checked){
+  var gone=[];
+  if(checked.c)gone.push(checked.c+" checked off");
+  if(checked.h)gone.push(checked.h+" heading"+(checked.h===1?"":"s"));
+  return gone.length?(gone.join(" and ")+" will not be filed and will be deleted."):"";
+}
 
-  var msg;
-  if(toFile.length){
-    msg="File "+toFile.length+" unchecked item"+(toFile.length===1?"":"s")+
-        " as task"+(toFile.length===1?"":"s")+" under Unreviewed Intake, then clear the whole list.";
-    var gone=[];
-    if(checked)gone.push(checked+" checked off");
-    if(heads)gone.push(heads+" heading"+(heads===1?"":"s"));
-    if(gone.length)msg+="\n\n"+gone.join(" and ")+" will NOT be filed and will be deleted.";
-  }else{
-    msg="Nothing unchecked to file.\n\nClear all "+total+" item"+(total===1?"":"s")+
-        "? They will be deleted, not filed.";
-  }
-  if(!confirm(msg))return;
-
-  /* Check reachability BEFORE writing anything, so this can't half-file. */
+async function sweepRun(toFile,skip,checked){
   if(toFile.length&&(typeof TASKS==="undefined"||typeof nowISO!=="function")){
     alert("Couldn't reach the task list — nothing was filed and the list is untouched.");
     return;
   }
   var made=0;
-  toFile.forEach(function(i){if(boardAdd(i.t))made++});
+  toFile.forEach(function(i){ if(!skip.has(i)&&boardAdd(i.t))made++ });
 
   ITEMS=[];padSave();drawPad();
   if(made){
@@ -2295,8 +2539,61 @@ async function sweep(){
   }
   drawFrogs();
   var note=made?("Swept "+made+" to Unreviewed Intake"):"List cleared";
-  if(made&&checked)note+=" \u00b7 "+checked+" checked deleted";
+  var extras=[];
+  if(skip.size)extras.push(skip.size+" duplicate"+(skip.size===1?"":"s")+" skipped");
+  if(checked.c)extras.push(checked.c+" checked deleted");
+  if(extras.length)note+=" \u00b7 "+extras.join(" \u00b7 ");
   saved.textContent=note;say(note);
+}
+
+/* Unchecked items become tasks. Checked ones are deliberately NOT filed —
+   they are already done — but the sweep clears the WHOLE list either way.
+   Anything that looks like a task you already have is surfaced first, so
+   nothing is filed or binned without the warning being on screen. */
+async function sweep(){
+  padFlush();
+  var total=ITEMS.length;
+  if(!total)return;
+  var toFile=padToFile(),
+      checked={c:ITEMS.filter(function(i){return i.d}).length,
+               h:ITEMS.filter(function(i){return isHeadingLine(i.t)}).length};
+
+  /* compare against what is still open — completed work is out of scope */
+  var openTasks=[];
+  try{
+    if(typeof alive==="function")
+      openTasks=alive().filter(function(t){return !isDone(t)&&t.title});
+  }catch(e){ openTasks=[]; }
+
+  var flags=toFile.length?simScan(toFile,openTasks):[];
+
+  if(flags.length){
+    var summary="Filing "+toFile.length+" unchecked item"+(toFile.length===1?"":"s")+
+      " under Unreviewed Intake, then clearing the whole list. "+
+      "Skipped items are not filed and are deleted with the rest.";
+    var tail=sweepTail(checked);
+    if(tail)summary+=" "+tail;
+    simReview(flags,summary,function(result){
+      if(!result)return;                     /* cancelled: nothing touched */
+      var skip=new Set();
+      result.forEach(function(f){ if(!f.keep)skip.add(f.item) });
+      sweepRun(toFile,skip,checked);
+    });
+    return;
+  }
+
+  var msg;
+  if(toFile.length){
+    msg="File "+toFile.length+" unchecked item"+(toFile.length===1?"":"s")+
+        " as task"+(toFile.length===1?"":"s")+" under Unreviewed Intake, then clear the whole list.";
+    var tail2=sweepTail(checked);
+    if(tail2)msg+="\n\n"+tail2.charAt(0).toUpperCase()+tail2.slice(1);
+  }else{
+    msg="Nothing unchecked to file.\n\nClear all "+total+" item"+(total===1?"":"s")+
+        "? They will be deleted, not filed.";
+  }
+  if(!confirm(msg))return;
+  await sweepRun(toFile,new Set(),checked);
 }
 
 /* ============================================================
@@ -2903,7 +3200,7 @@ function boot(){
 }
 
 LBX.show=show;LBX.loadCsv=loadCsv;LBX.build=build;LBX.safeUrl=safeUrl;
-LBX.items=function(){return ITEMS};LBX.padText=function(){return padToText()};
+LBX.items=function(){return ITEMS};LBX.simScore=simScore;LBX.simScan=simScan;LBX.padText=function(){return padToText()};
 LBX.events=function(){return evAll()};
 LBX.dkey=dkey;LBX.parseDelim=parseDelim;LBX.refreshFrogs=function(){if(frogs)drawFrogs()};
 
