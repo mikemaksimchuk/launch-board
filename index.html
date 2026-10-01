@@ -433,7 +433,7 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
-const VERSION="v12";
+const VERSION="v13";
 let LOADFAIL=false;
 // BUILD doubles as the localStorage key. Bumping it makes the board look for data
 // that isn't there and fall into the legacy-recovery path, so the visible version
@@ -1834,6 +1834,32 @@ html[data-theme="dark"] .lbxfrogs h3{color:var(--text)}
 .lbxfrogs .task{margin-bottom:5px}
 .lbxfrogs .task:last-child{margin-bottom:0}
 .lbxfrogs .none{color:var(--muted);font-size:12.5px;padding:4px 0 2px}
+/* purge dupes */
+#lbxundo[hidden]{display:none}
+#lbxundo{background:var(--surface);color:var(--teal);border-color:var(--line)}
+.lbxpurgedlg{max-width:760px}
+.lbxpurgecard.keeping{opacity:.55}
+.lbxpurgehead{margin-bottom:9px}
+.lbxpurgerow{display:flex;gap:10px;align-items:flex-start;padding:8px 9px;border-radius:7px;
+  cursor:pointer;border:1px solid transparent}
+.lbxpurgerow:hover{background:var(--surface)}
+.lbxpurgerow.win{background:var(--surface);border-color:var(--midTeal)}
+.lbxpurgerow input{margin:3px 0 0;flex:none;cursor:pointer}
+.lbxpurgemid{display:flex;flex-direction:column;gap:5px;min-width:0;flex:1}
+.lbxpurgerow .lbxpurgetitle{font-size:13.5px;font-weight:600;line-height:1.35}
+.lbxpurgerow.win .lbxpurgetitle{color:var(--darkTeal)}
+html[data-theme="dark"] .lbxpurgerow.win .lbxpurgetitle{color:var(--text)}
+.lbxpurgepills{display:flex;gap:5px;flex-wrap:wrap}
+.lbxpurgeedit{display:flex;gap:9px;align-items:center;margin:9px 0 2px;padding:0 9px}
+.lbxpurgelab{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted);white-space:nowrap}
+.lbxpurgeedit input{flex:1;font-size:13px}
+.lbxpurgedlg .lbxdupchoice{flex-wrap:wrap;gap:14px;margin-top:9px}
+@media(max-width:620px){
+.lbxpurgeedit{flex-direction:column;align-items:stretch;gap:4px}
+.lbxpurgedlg .lbxdupchoice{flex-direction:column;gap:7px}
+}
+
 /* duplicate review */
 .lbxdupdlg{border:1px solid var(--line);border-radius:12px;padding:0;max-width:660px;width:92vw;
   background:var(--surface);color:var(--text)}
@@ -2340,12 +2366,13 @@ function simTokens(v){
    about the swag order" share enough of "about the" to clear the threshold
    on filler alone. Stripping stopwords first kills that whole class of
    false positive while keeping the typo tolerance trigrams are here for. */
-function simTri(v){
-  var t=" "+simTokens(v).join(" ")+" ";
+function simTriFrom(tokens){
+  var t=" "+tokens.join(" ")+" ";
   var set=new Set();
   for(var i=0;i+3<=t.length;i++)set.add(t.slice(i,i+3));
   return set;
 }
+function simTri(v){ return simTriFrom(simTokens(v)); }
 function simDice(a,b){
   if(!a.size||!b.size)return 0;
   var n=0;
@@ -2381,7 +2408,7 @@ function simNums(v){
   var m=String(v||"").match(/\d+/g);
   return m?new Set(m):new Set();
 }
-function simClash(a,b,df){
+function simClash(a,b,df,aCounted,bCounted){
   /* Different numbers, same shape: "Quick Bites #1" vs "#2", "day 1" vs
      "day 2". Only decisive when BOTH sides carry a number, so a dictated
      line with no number still matches its numbered task. */
@@ -2391,13 +2418,28 @@ function simClash(a,b,df){
     na.forEach(function(x){if(nb.has(x))same=true});
     if(!same)return true;
   }
-  /* A distinctive word must be one the BOARD knows (df 1–2): a district, a
-     person, a place. A word with df 0 is simply new vocabulary, not evidence
-     that two lines are about different things — counting it made every word
-     look rare whenever the board was small and vetoed real matches. */
+  /* A distinctive word is one the BOARD knows (df >= 1 — df 0 is just new
+     vocabulary) and that is rare in the REST of the board.
+
+     "Rest of" matters board-wide: the two titles being compared are
+     themselves in the corpus, so a duplicated pair inflates its own
+     frequency. "Lapeer" showed up three times purely because the Lapeer
+     duplicate existed twice, which pushed it over the rare threshold and
+     let "Confirm COOR dates" match "Confirm Lapeer dates" at 78%.
+     Discounting the two titles under comparison fixes that. aCounted and
+     bCounted say which of them the df was built from — at sweep time the
+     pad line is not in the corpus, only the task is. */
+  function rare(w,mine,theirs){
+    var d=df[w]||0;
+    if(d<1)return false;
+    var rest=d-(mine?1:0)-(theirs?1:0);
+    return rest<=2;
+  }
+  var inA=(aCounted===undefined)?false:!!aCounted;
+  var inB=(bCounted===undefined)?true:!!bCounted;
   var A=new Set(simTokens(a)), B=new Set(simTokens(b)), aOnly=0, bOnly=0;
-  A.forEach(function(w){var d=df[w]||0; if(!B.has(w)&&d>=1&&d<=2)aOnly++});
-  B.forEach(function(w){var d=df[w]||0; if(!A.has(w)&&d>=1&&d<=2)bOnly++});
+  A.forEach(function(w){ if(!B.has(w)&&rare(w,inA,false))aOnly++ });
+  B.forEach(function(w){ if(!A.has(w)&&rare(w,inB,false))bOnly++ });
   return aOnly>0&&bOnly>0;
 }
 
@@ -2912,6 +2954,344 @@ function evInjectField(w,t){
 }
 
 /* ============================================================
+   Purge Dupes — the same matcher, run across the whole board.
+
+   Sweep compares a handful of new lines against the board. This
+   compares every task against every other, which changes what
+   matters:
+
+     · Recurring instances share a series id and are identical by
+       design. Without exempting them this tool is unusable — every
+       weekly task matches all of its own siblings.
+     · A parent and its child often read alike ("Summit B1" /
+       "Summit B1 — print packets"). That is nesting, not duplication.
+     · A ≈ B and B ≈ C is one cluster of three, not two pairs. Shown
+       as pairs you could merge A into B and then delete B.
+
+   Every change is a soft delete (t.deleted), so Undo restores the
+   board exactly. The snapshot is written to storage, not memory, so
+   it survives a reload.
+   ============================================================ */
+var K_PURGE="LBX.purge.undo";
+
+function purgeFill(t){
+  var n=0;
+  ["due","start","prio","effort","tier","proj","notes","event"].forEach(function(k){if(t[k])n++});
+  if(t.frog)n++;
+  if(t.pin)n++;
+  return n;
+}
+function purgeRelated(a,b){
+  function up(x,targetId){
+    var g=0;
+    while(x&&x.parent&&g++<60){
+      if(x.parent===targetId)return true;
+      x=TASKS.find(function(y){return y.id===x.parent});
+    }
+    return false;
+  }
+  return up(a,b.id)||up(b,a.id);
+}
+
+function purgeScan(){
+  var list=[];
+  try{
+    if(typeof alive==="function")
+      list=alive().filter(function(t){return !isDone(t)&&t.title&&String(t.title).trim()});
+  }catch(e){ return []; }
+  if(list.length<2)return [];
+
+  var df=simDF(list);
+  /* prepare each title ONCE — the scan is O(n²) in comparisons but must
+     stay O(n) in tokenising, or a few hundred tasks gets slow */
+  var prep=list.map(function(t){
+    var tk=simTokens(t.title);
+    return {t:t,tok:new Set(tk),tri:simTriFrom(tk),n:tk.length};
+  });
+
+  var pairs=[],i,j,A,B,sc,bar;
+  for(i=0;i<prep.length;i++){
+    for(j=i+1;j<prep.length;j++){
+      A=prep[i];B=prep[j];
+      if(A.t.series&&A.t.series===B.t.series)continue;   /* same recurring series */
+      if(purgeRelated(A.t,B.t))continue;                 /* nesting, not duplication */
+      sc=Math.max(simDice(A.tok,B.tok),simDice(A.tri,B.tri));
+      if(!sc)continue;
+      bar=(Math.min(A.n,B.n)<3)?SIM_SHORT:SIM_FLAG;
+      if(sc<bar)continue;
+      if(sc<SIM_DIVERGE&&simClash(A.t.title,B.t.title,df,true,true))continue;
+      pairs.push({a:A.t,b:B.t,score:sc});
+    }
+  }
+  if(!pairs.length)return [];
+
+  /* union-find: transitive matches become one cluster */
+  var up=Object.create(null);
+  function root(x){ while(up[x]&&up[x]!==x)x=up[x]; return x; }
+  pairs.forEach(function(pr){
+    if(!up[pr.a.id])up[pr.a.id]=pr.a.id;
+    if(!up[pr.b.id])up[pr.b.id]=pr.b.id;
+    var ra=root(pr.a.id),rb=root(pr.b.id);
+    if(ra!==rb)up[ra]=rb;
+  });
+
+  var byRoot=Object.create(null), seen=Object.create(null);
+  pairs.forEach(function(pr){
+    [pr.a,pr.b].forEach(function(t){
+      if(seen[t.id])return;
+      seen[t.id]=1;
+      var r=root(t.id);
+      (byRoot[r]=byRoot[r]||[]).push(t);
+    });
+  });
+
+  var best=Object.create(null);
+  pairs.forEach(function(pr){
+    var r=root(pr.a.id);
+    if(!(r in best)||pr.score>best[r])best[r]=pr.score;
+  });
+
+  var out=[];
+  Object.keys(byRoot).forEach(function(r){
+    var members=byRoot[r];
+    if(members.length<2)return;
+    /* default survivor: the most complete record, then the hottest, then oldest */
+    var win=members.slice().sort(function(x,y){
+      var fx=purgeFill(x),fy=purgeFill(y);
+      if(fx!==fy)return fy-fx;
+      var hx=0,hy=0;
+      try{hx=heat(x).n;hy=heat(y).n}catch(e){}
+      if(hx!==hy)return hy-hx;
+      return String(x.created||"").localeCompare(String(y.created||""));
+    })[0];
+    out.push({members:members,winId:win.id,score:best[r]||0,action:"merge",title:win.title});
+  });
+  out.sort(function(a,b){return b.score-a.score});
+  return out;
+}
+
+/* Fill blanks on the survivor from the others, never overwrite. Children of
+   a removed task are re-homed onto the survivor so nothing is orphaned. */
+function purgeMerge(win,losers){
+  var FIELDS=["cat","proj","tier","start","due","effort","prio","event","src"];
+  losers.forEach(function(L){
+    FIELDS.forEach(function(k){ if(!win[k]&&L[k])win[k]=L[k]; });
+    if(L.frog)win.frog=true;
+    if(L.pin&&!win.pin)win.pin=L.pin;
+    if(L.verify)win.verify=true;
+    var add=String(L.notes||"").trim();
+    if(add){
+      if(!String(win.notes||"").trim())win.notes=add;
+      else if(String(win.notes).indexOf(add)===-1)
+        win.notes=String(win.notes)+"\n\n\u2014 merged from \""+L.title+"\" \u2014\n"+add;
+    }
+    try{ kids(L.id).forEach(function(k){k.parent=win.id;if(typeof touch==="function")touch(k)}); }catch(e){}
+    L.deleted=(typeof nowISO==="function")?nowISO():new Date().toISOString();
+    L.touched=L.deleted;
+  });
+  try{ if(typeof touch==="function")touch(win); }catch(e){}
+}
+
+function purgeSnapshot(){
+  try{
+    return s(K_PURGE,JSON.stringify({at:new Date().toISOString(),
+      tasks:JSON.parse(JSON.stringify(TASKS))}));
+  }catch(e){ return false; }
+}
+function purgeHasUndo(){ return !!g(K_PURGE); }
+async function purgeUndo(){
+  var raw=g(K_PURGE);
+  if(!raw){say("Nothing to undo");return}
+  var snap;
+  try{snap=JSON.parse(raw)}catch(e){alert("The undo snapshot is unreadable; nothing was changed.");return}
+  if(!snap||!Array.isArray(snap.tasks)){alert("The undo snapshot is unreadable; nothing was changed.");return}
+  if(!confirm("Restore the board to exactly how it was before the purge? "+
+              snap.tasks.length+" tasks will be put back as they were."))return;
+  TASKS.length=0;
+  snap.tasks.forEach(function(t){TASKS.push(t)});
+  rm(K_PURGE);
+  purgeUndoBtn();
+  if(typeof save==="function")await save();
+  if(typeof render==="function")render();
+  say("Purge undone \u2014 board restored");
+}
+function purgeUndoBtn(){
+  var b=D("lbxundo");
+  if(b)b.hidden=!purgeHasUndo();
+}
+
+/* ---------- the purge review dialog ---------- */
+function purgeOpen(){
+  var clusters;
+  try{ clusters=purgeScan(); }
+  catch(e){ alert("Couldn't scan the board: "+e.message); return; }
+
+  if(!clusters.length){
+    var n=0;
+    try{ n=alive().filter(function(t){return !isDone(t)}).length }catch(e){}
+    alert("No likely duplicates found across "+n+" open task"+(n===1?"":"s")+
+          ".\n\nRecurring series and nested parent/child pairs are skipped on purpose "+
+          "\u2014 they look identical but are not duplicates.");
+    return;
+  }
+
+  var dlg=document.createElement("dialog");
+  dlg.className="lbxdupdlg lbxpurgedlg";
+
+  dlg.appendChild(E("h3",null,clusters.length+(clusters.length===1
+    ? " possible duplicate found" : " possible duplicates found")));
+  dlg.appendChild(E("p","lbxdupsub",
+    "Pick which record survives, then what to do with the rest. Merging fills blank "+
+    "fields on the survivor from the others and never overwrites what is already there; "+
+    "any nested tasks move across too. Nothing is permanent \u2014 Undo restores the board exactly."));
+
+  var wrap=E("div","lbxdupwrap");
+
+  clusters.forEach(function(c,ix){
+    var card=E("div","lbxdupcard lbxpurgecard");
+
+    var head=E("div","lbxpurgehead");
+    head.appendChild(E("span","lbxdupscore"+(c.score>=SIM_SURE?" sure":""),
+      simPct(c.score)+" match"+(c.members.length>2?" \u00b7 "+c.members.length+" records":"")));
+    card.appendChild(head);
+
+    /* one row per record, radio picks the survivor */
+    c.members.forEach(function(t){
+      var row=E("label","lbxpurgerow"+(t.id===c.winId?" win":""));
+      var r=document.createElement("input");
+      r.type="radio";r.name="lbxpurge"+ix;r.value=t.id;
+      r.checked=(t.id===c.winId);
+      r.onchange=function(){
+        c.winId=t.id;c.title=t.title;
+        var box=D("lbxpurgetitle"+ix); if(box)box.value=t.title;
+        wrap.querySelectorAll("[data-cl='"+ix+"']").forEach(function(x){
+          x.classList.toggle("win",x.getAttribute("data-id")===t.id)});
+      };
+      row.setAttribute("data-cl",String(ix));
+      row.setAttribute("data-id",t.id);
+      row.appendChild(r);
+
+      var mid=E("span","lbxpurgemid");
+      mid.appendChild(E("span","lbxpurgetitle",t.title||"(untitled)"));
+      var pills=E("span","lbxpurgepills");
+      if(t.cat)pills.appendChild(E("span","pill",t.cat));
+      if(t.status&&t.status!=="Open")pills.appendChild(E("span","pill",t.status));
+      if(t.due)pills.appendChild(E("span","pill","due "+t.due));
+      if(t.prio)pills.appendChild(E("span","pill","P: "+t.prio));
+      if(t.proj)pills.appendChild(E("span","pill",t.proj));
+      if(t.frog)pills.appendChild(E("span","pill","\uD83D\uDC38"));
+      var kn=0; try{kn=kids(t.id).length}catch(e){}
+      if(kn)pills.appendChild(E("span","pill",kn+" nested"));
+      if(String(t.notes||"").trim())pills.appendChild(E("span","pill","has notes"));
+      try{ pills.appendChild(E("span","pill","heat "+heat(t).n)); }catch(e){}
+      mid.appendChild(pills);
+      row.appendChild(mid);
+      card.appendChild(row);
+    });
+
+    /* editable title for whatever survives */
+    var te=E("div","lbxpurgeedit");
+    te.appendChild(E("span","lbxpurgelab","Keep as"));
+    var ti=document.createElement("input");
+    ti.type="text";ti.id="lbxpurgetitle"+ix;ti.value=c.title;
+    ti.oninput=function(){c.title=ti.value};
+    te.appendChild(ti);
+    card.appendChild(te);
+
+    var ch=E("div","lbxdupchoice");
+    [["merge","Merge into the survivor"],
+     ["delete","Delete the others, no merge"],
+     ["keep","Keep them all"]].forEach(function(o){
+      var lab=E("label","lbxdupopt");
+      var r=document.createElement("input");
+      r.type="radio";r.name="lbxpurgeact"+ix;r.value=o[0];
+      r.checked=(o[0]===c.action);
+      r.onchange=function(){c.action=o[0];card.classList.toggle("keeping",o[0]==="keep")};
+      lab.appendChild(r);lab.appendChild(document.createTextNode(o[1]));
+      ch.appendChild(lab);
+    });
+    card.appendChild(ch);
+    wrap.appendChild(card);
+  });
+  dlg.appendChild(wrap);
+
+  var acts=E("div","lbxdupacts");
+  var skipAll=E("button",null,"Keep everything");
+  skipAll.type="button";
+  skipAll.onclick=function(){
+    clusters.forEach(function(c,ix){
+      c.action="keep";
+      var r=dlg.querySelector("input[name='lbxpurgeact"+ix+"'][value='keep']");
+      if(r)r.checked=true;
+    });
+    wrap.querySelectorAll(".lbxpurgecard").forEach(function(x){x.classList.add("keeping")});
+  };
+  var cancel=E("button",null,"Cancel");
+  cancel.type="button";
+  cancel.onclick=function(){done(false)};
+  var go=E("button","pri","Apply");
+  go.type="button";
+  go.onclick=function(){done(true)};
+
+  var left=E("div","lbxdupbulk");left.appendChild(skipAll);
+  var right=E("div","lbxdupgo");right.appendChild(cancel);right.appendChild(go);
+  acts.appendChild(left);acts.appendChild(right);
+  dlg.appendChild(acts);
+
+  function shut(){
+    try{dlg.close()}catch(e){}
+    if(dlg.parentNode)dlg.parentNode.removeChild(dlg);
+  }
+  async function done(apply){
+    shut();
+    if(!apply)return;
+    await purgeApply(clusters);
+  }
+  dlg.addEventListener("cancel",function(e){e.preventDefault();done(false)});
+
+  document.body.appendChild(dlg);
+  try{dlg.showModal()}catch(e){dlg.setAttribute("open","")}
+}
+
+async function purgeApply(clusters){
+  var live=clusters.filter(function(c){return c.action!=="keep"});
+  if(!live.length){ say("Nothing changed"); return; }
+
+  var merges=0,removed=0;
+  if(!purgeSnapshot()&&
+     !confirm("Couldn't save an undo snapshot (storage may be full). Apply anyway? "+
+              "This cannot be undone from here."))return;
+
+  live.forEach(function(c){
+    var win=c.members.filter(function(t){return t.id===c.winId})[0];
+    if(!win)return;
+    var losers=c.members.filter(function(t){return t.id!==c.winId});
+    if(!losers.length)return;
+    if(c.action==="merge"){ purgeMerge(win,losers); merges++; }
+    else {
+      losers.forEach(function(L){
+        try{ kids(L.id).forEach(function(k){k.parent=win.id;if(typeof touch==="function")touch(k)}); }catch(e){}
+        L.deleted=(typeof nowISO==="function")?nowISO():new Date().toISOString();
+        L.touched=L.deleted;
+      });
+    }
+    removed+=losers.length;
+    var newTitle=String(c.title||"").trim();
+    if(newTitle&&newTitle!==win.title){
+      win.title=newTitle;
+      try{ if(typeof touch==="function")touch(win); }catch(e){}
+    }
+  });
+
+  if(typeof save==="function")await save();
+  if(typeof render==="function")render();
+  purgeUndoBtn();
+  var msg=removed+" duplicate"+(removed===1?"":"s")+" removed";
+  if(merges)msg+=" \u00b7 "+merges+" merged";
+  say(msg+" \u00b7 Undo is in the header");
+}
+
+/* ============================================================
    Release stamp + last-saved clock
 
    BUMP THESE TWO TOGETHER ON EVERY DELIVERY. The version number
@@ -2921,7 +3301,7 @@ function evInjectField(w,t){
    and changing it would point the app at an empty key and orphan
    the saved board. That is why the footer said August.
    ============================================================ */
-var LBX_RELEASED="2026-09-30T23:55:00";
+var LBX_RELEASED="2026-10-01T00:40:00";
 var K_SAVED="LBX.lastsave";
 
 function stampWhen(iso,withTime){
@@ -2991,6 +3371,22 @@ function boot(){
       done=D("done"), strip=D("strip"), bar=document.querySelector(".bar"),
       list=D("list"), hLinks=D("hLinks"), lSub=D("linksSub"),
       lTools=D("linkTools"), links=D("links");
+
+  /* masthead buttons, beside Add task / Upload batch / Sync */
+  var mast=document.querySelector(".banner .mastbtns")||document.querySelector(".mastbtns");
+  if(mast&&!D("lbxpurge")){
+    var pb=E("button","pri","Purge Dupes");
+    pb.type="button";pb.id="lbxpurge";
+    pb.title="Scan every open task for near-duplicates";
+    pb.onclick=purgeOpen;
+    mast.appendChild(pb);
+    var ub=E("button",null,"Undo purge");
+    ub.type="button";ub.id="lbxundo";ub.hidden=true;
+    ub.title="Restore the board to exactly how it was before the last purge";
+    ub.onclick=purgeUndo;
+    mast.appendChild(ub);
+  }
+  purgeUndoBtn();
 
   var tabs=E("div","lbxtabs");
   tabs.setAttribute("role","tablist");
@@ -3266,7 +3662,7 @@ function boot(){
 }
 
 LBX.show=show;LBX.loadCsv=loadCsv;LBX.build=build;LBX.safeUrl=safeUrl;
-LBX.items=function(){return ITEMS};LBX.simScore=simScore;LBX.simScan=simScan;LBX.released=LBX_RELEASED;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
+LBX.items=function(){return ITEMS};LBX.simScore=simScore;LBX.simScan=simScan;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
 LBX.events=function(){return evAll()};
 LBX.dkey=dkey;LBX.parseDelim=parseDelim;LBX.refreshFrogs=function(){if(frogs)drawFrogs()};
 
