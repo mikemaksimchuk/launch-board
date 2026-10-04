@@ -433,7 +433,7 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
-const VERSION="v13";
+const VERSION="v14";
 let LOADFAIL=false;
 // BUILD doubles as the localStorage key. Bumping it makes the board look for data
 // that isn't there and fall into the legacy-recovery path, so the visible version
@@ -1635,7 +1635,11 @@ async function doSync(quiet){
    if(remote.links&&((!LINKGROUPS.length&&remote.links.length)||(rt&&(!lt||rt>lt)))){
     LINKGROUPS=remote.links;META.linksTouched=rt||nowISO();linkMigrate()}
    if(remote.meta&&Array.isArray(remote.meta.captured))
-    META.captured=[...new Set(remote.meta.captured.concat(META.captured||[]))].slice(-400)}
+    META.captured=[...new Set(remote.meta.captured.concat(META.captured||[]))].slice(-400)
+   // Everything else under meta (events, cluster-files) merges in the patch.
+   // Without this the inbound meta is dropped and the next PUT overwrites the
+   // other device's records with this device's empty ones.
+   if(typeof LBXMERGE==="function")try{LBXMERGE(remote)}catch(e){console.warn("meta merge:",e)}}
   TASKS=out;
   TASKS.forEach(t=>{const to=CATRENAME[t.cat];if(to)t.cat=to;        // rows from an un-updated device
    if(t.cluster!==undefined||t.clusterN!==undefined){delete t.cluster;delete t.clusterN}});
@@ -2179,23 +2183,90 @@ function padToText(){
   }).join("\n");
 }
 
-/* Storage stays on the SAME key. A value starting "[" is the new JSON form;
-   anything else is the old plain text and gets migrated on read, so notes
-   already sitting in the pad survive this change as unchecked items. */
-function padLoad(){
-  var raw=g(K_PAD);
-  if(raw==null)return [];
-  if(raw.charAt(0)==="["){
-    try{
-      var a=JSON.parse(raw);
-      if(Array.isArray(a)&&a.every(function(x){return x&&typeof x.t==="string"}))
-        return a.map(function(x){return {t:x.t,d:!!x.d}});
-    }catch(e){}
+/* The list lives in META.cluster so it rides the sync payload and lands in
+   every backup. LBX.pad was local-only, which is exactly the problem.
+   Binding is deferred because load() is async: if this ran first it would
+   migrate into the default META and then be thrown away when the real one
+   arrived. */
+/* load() REPLACES the META object rather than mutating it, and it is async.
+   A one-shot bind therefore latches onto whichever META happens to exist
+   first — usually the default one, which is then thrown away. Track the
+   object we bound to and re-bind whenever it changes identity. */
+var padBound=false, padMeta=null;
+
+function padBind(){
+  if(typeof META==="undefined"||!META)return false;
+  if(padBound&&padMeta===META&&Array.isArray(META.cluster)){
+    ITEMS=lbxLive(META.cluster);
+    return true;
   }
-  return padParse(raw);
+  if(!Array.isArray(META.cluster)){
+    var raw=g(K_PAD), items=[];
+    if(raw!=null){
+      /* "[" alone cannot tell the two formats apart: the checklist's OWN text
+         form starts "[ ] do the thing". Require "[{" for the JSON shape, and
+         fall back to the text parser if that parse fails anyway. */
+      var parsed=null;
+      if(/^\s*\[\s*\{/.test(raw)){
+        try{
+          var a=JSON.parse(raw);
+          if(Array.isArray(a))parsed=a.filter(function(x){return x&&typeof x.t==="string"})
+                                      .map(function(x){return {t:x.t,d:!!x.d}});
+        }catch(e){ parsed=null; }
+      }
+      items=(parsed!==null)?parsed:padParse(raw);
+    }
+    var now=lbxNow();
+    items.forEach(function(i){ i.id=lbxId("CF-"); i.touched=now; });
+    META.cluster=items;
+    if(items.length){ try{ if(typeof save==="function")save() }catch(e){} }
+  }
+  ITEMS=lbxLive(META.cluster);
+  padBound=true; padMeta=META;
+  return true;
 }
+
+/* Tombstones are what stop a delete on one device being undone by a union
+   with another. They stop being useful once every device has seen them. */
+function padPrune(list){
+  var cut=Date.now()-30*864e5;
+  return list.filter(function(x){
+    if(!x||!x.deleted)return true;
+    var t=Date.parse(x.touched||x.deleted);
+    return isNaN(t)||t>cut;
+  });
+}
+
 function padSave(){
-  var ok=s(K_PAD,JSON.stringify(ITEMS.map(function(i){return {t:i.t,d:i.d?1:0}})));
+  if(!padBound&&!padBind()){
+    saved.textContent="Not saved \u2014 board not loaded yet";
+    return false;
+  }
+  var prev=lbxMetaList("cluster"), now=lbxNow(), seen=Object.create(null), byId=Object.create(null);
+  prev.forEach(function(o){ if(o&&o.id)byId[o.id]=o });
+
+  ITEMS.forEach(function(i){
+    if(!i.id)i.id=lbxId("CF-");
+    seen[i.id]=1;
+    var o=byId[i.id];
+    /* stamp only on a real change, so an untouched row does not win a merge
+       it should have lost */
+    if(!o||o.t!==i.t||!!o.d!==!!i.d||o.deleted)i.touched=now;
+    else i.touched=o.touched||now;
+    if(i.deleted)delete i.deleted;
+  });
+
+  var out=ITEMS.slice();
+  prev.forEach(function(o){
+    if(!o||!o.id||seen[o.id])return;
+    if(!o.deleted){ o.deleted=now; o.touched=now; }
+    out.push(o);
+  });
+  META.cluster=padPrune(out);
+
+  var ok=true;
+  try{ if(typeof save==="function")Promise.resolve(save()).catch(function(){}); }
+  catch(e){ ok=false; }
   saved.textContent=ok
     ?"Saved "+new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})
     :"Not saved \u2014 storage blocked";
@@ -2252,7 +2323,12 @@ function padRow(it,ix){
     row.classList.toggle("head",isHeadingLine(it.t));
     padSaveSoon();padStats();
   };
-  inp.onblur=padFlush;
+  inp.onblur=function(){
+    padFlush();
+    /* a merge may have landed while this field had focus and skipped the
+       redraw to protect the caret — pick it up now the field is free */
+    setTimeout(function(){ try{drawPadSafe()}catch(e){} },0);
+  };
   inp.onkeydown=function(e){
     if(e.key==="Enter"){
       e.preventDefault();padFlush();
@@ -2665,7 +2741,7 @@ var SADOPEN=new Set(), SUPPRESS_EV=false, K_SAD="LBX.sad.closed";
 function evAll(){
   if(typeof META==="undefined"||!META)return[];
   if(!Object.prototype.hasOwnProperty.call(META,"events")||!Array.isArray(META.events))META.events=[];
-  return META.events;
+  return lbxLive(META.events);          /* tombstones stay in META, out of the UI */
 }
 function evById(id){
   if(!id)return null;
@@ -2759,10 +2835,11 @@ async function evCommit(){
 }
 
 function evAdd(title,start,end){
-  var a=evAll();
-  a.push({id:evNewId(),title:String(title||"Untitled event").trim()||"Untitled event",
-          start:start||"",end:end||"",created:(typeof nowISO==="function")?nowISO():""});
-  return a[a.length-1];
+  var a=lbxMetaList("events"), now=lbxNow();
+  var ev={id:evNewId(),title:String(title||"Untitled event").trim()||"Untitled event",
+          start:start||"",end:end||"",created:now,touched:now};
+  a.push(ev);
+  return ev;
 }
 async function evDelete(ev){
   var linked=evTasks(ev.id);
@@ -2771,8 +2848,11 @@ async function evDelete(ev){
         (linked.length===1?"":"s")+" themselves are NOT deleted."
       : "")))return;
   linked.forEach(function(t){ t.event=""; try{ if(typeof touch==="function")touch(t); }catch(e){} });
-  var a=evAll();
-  for(var i=a.length-1;i>=0;i--)if(a[i].id===ev.id)a.splice(i,1);
+  /* soft delete: a hard splice would be undone the moment another device
+     merged its own copy back in */
+  var a=lbxMetaList("events"), now=lbxNow();
+  a.forEach(function(x){ if(x&&x.id===ev.id){ x.deleted=now; x.touched=now; } });
+  META.events=padPrune(a);
   SADOPEN.delete(ev.id); evSaveClosed();
   await evCommit();
   say("Event deleted"+(linked.length?" — "+linked.length+" task"+(linked.length===1?"":"s")+" unlinked":""));
@@ -2798,7 +2878,7 @@ async function evFormSave(){
       st=D("lbxevStart").value, en=D("lbxevEnd").value;
   if(!t){ alert("Give the event a title."); D("lbxevTitle").focus(); return; }
   if(st&&en&&en<st){ alert("The end date is before the start date."); return; }
-  if(EDITING){ EDITING.title=t; EDITING.start=st; EDITING.end=en; }
+  if(EDITING){ EDITING.title=t; EDITING.start=st; EDITING.end=en; EDITING.touched=lbxNow(); }
   else { var ne=evAdd(t,st,en); SADOPEN.delete(ne.id); }
   evFormClose();
   await evCommit();
@@ -3292,6 +3372,101 @@ async function purgeApply(clusters){
 }
 
 /* ============================================================
+   Cross-device sync for events and cluster-files
+
+   Both now live under META, which is already in the sync payload
+   ({build, tasks, meta, links}). That was never enough on its own:
+   doSync read only meta.linksTouched and meta.captured on the way
+   back in, so a second device dropped the incoming records and then
+   PUT its own empty ones over them. The core now calls LBXMERGE so
+   the rest of meta is merged rather than discarded.
+
+   Merge rule mirrors how tasks already merge: by id, newest
+   `touched` wins, and a soft `deleted` record is honoured rather
+   than resurrected by the union.
+
+   NOT synced, deliberately: which event groups are collapsed, the
+   active tab, the last-saved clock and the purge undo snapshot are
+   per-device state. The chat index stays local too — it is the
+   largest blob by far and is regenerable from the CSV in Drive.
+   ============================================================ */
+function lbxNow(){ try{ return nowISO() }catch(e){ return new Date().toISOString() } }
+function lbxId(p){ return p+Math.random().toString(36).slice(2,8) }
+
+function lbxMetaList(key){
+  if(typeof META==="undefined"||!META)return [];
+  if(!Array.isArray(META[key]))META[key]=[];
+  return META[key];
+}
+function lbxLive(list){ return (list||[]).filter(function(x){return x&&!x.deleted}) }
+
+/* newest-wins by id, with a text guard for the one-off case where two
+   devices each migrated the same local list independently and produced
+   different ids for identical rows */
+function lbxMerge(local,remote,textKey){
+  local=Array.isArray(local)?local:[];
+  remote=Array.isArray(remote)?remote:[];
+  var byId=Object.create(null), order=[];
+  local.forEach(function(x){ if(x&&x.id&&!(x.id in byId)){byId[x.id]=x;order.push(x.id)} });
+
+  var liveText=Object.create(null);
+  local.forEach(function(x){
+    if(x&&!x.deleted&&x[textKey])liveText[String(x[textKey]).trim().toLowerCase()]=x.id;
+  });
+
+  remote.forEach(function(r){
+    if(!r||!r.id)return;
+    var cur=byId[r.id];
+    if(cur){
+      var lt=String(cur.touched||cur.created||"");
+      var rt=String(r.touched||r.created||"");
+      if(rt>lt)byId[r.id]=r;
+      return;
+    }
+    /* unseen id — but identical text to something live here means both
+       devices migrated the same row separately; keep one, not two */
+    if(!r.deleted&&r[textKey]){
+      var k=String(r[textKey]).trim().toLowerCase();
+      if(liveText[k])return;
+    }
+    byId[r.id]=r; order.push(r.id);
+  });
+  return order.map(function(id){return byId[id]});
+}
+
+window.LBXMERGE=function(remote){
+  if(!remote||!remote.meta)return;
+  var changed=false;
+  if(Array.isArray(remote.meta.events)){
+    META.events=lbxMerge(lbxMetaList("events"),remote.meta.events,"title");
+    changed=true;
+  }
+  if(Array.isArray(remote.meta.cluster)){
+    META.cluster=lbxMerge(lbxMetaList("cluster"),remote.meta.cluster,"t");
+    ITEMS=lbxLive(META.cluster);
+    changed=true;
+  }
+  if(changed){
+    try{ drawSADSafe(); }catch(e){}
+    try{ drawPadSafe(); }catch(e){}
+  }
+};
+
+/* A sync can land mid-keystroke (it fires on window focus and on a 2.5s
+   debounce). Rebuilding the list would steal the caret, so hold off while
+   the user is actually in it. */
+function drawPadSafe(){
+  if(!listEl)return;
+  if(listEl.contains(document.activeElement))return;
+  drawPad();
+}
+function drawSADSafe(){
+  if(!sadWrap)return;
+  if(sadWrap.contains(document.activeElement))return;
+  drawSAD();
+}
+
+/* ============================================================
    Release stamp + last-saved clock
 
    BUMP THESE TWO TOGETHER ON EVERY DELIVERY. The version number
@@ -3355,7 +3530,7 @@ function show(name){
     try{ if(typeof renderLinks==="function")renderLinks(); }catch(e){}
     var lk=D("links"); if(lk)lk.style.display="";
   }
-  if(name==="pad"){drawFrogs();padStats()}
+  if(name==="pad"){drawFrogs();drawPadSafe();padStats()}
   if(name==="sad"){drawSAD()}
   if(name==="finder"&&!loaded.hidden)q.focus();
 }
@@ -3553,11 +3728,8 @@ function boot(){
     if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0])readFile(e.dataTransfer.files[0])});
 
   var had=g(K_PAD);
-  ITEMS=padLoad();
+  padBind();               /* no-op and retried from render() if load() has not finished */
   drawPad();
-  /* Migration converts in memory; write it back straight away so the stored
-     format actually settles rather than being re-migrated on every load. */
-  if(had!==null&&had.charAt(0)!=="["){ padSave(); }
 
   D("lbxadd").onclick=function(){
     padFlush();ITEMS.push({t:"",d:false});padSave();drawPad(ITEMS.length-1);
@@ -3578,8 +3750,7 @@ function boot(){
   };
   D("lbxsweep").onclick=sweep;
   drawFrogs();
-  if(had&&ITEMS.length)saved.textContent="Restored from last session";
-  else if(had&&!ITEMS.length)saved.textContent="&nbsp;";
+  if(ITEMS.length)saved.textContent="Restored from last session";
 
   /* complete(), the detail editor and the frog toggle all end in render().
      Wrap it so these panels repaint on the same cycle — otherwise ticking a
@@ -3591,6 +3762,9 @@ function boot(){
     var _render=window.render;
     window.render=function(){
       var out=_render.apply(this,arguments);
+      /* load() is async, so the first render is the earliest point META is
+         reliably populated — bind the cluster list here if boot was too early */
+      try{ if(padMeta!==META&&padBind())drawPadSafe(); }catch(e){}
       try{ if(frogs)drawFrogs(); }catch(e){}
       try{ if(sadWrap)drawSAD(); }catch(e){}
       return out;
@@ -3662,7 +3836,7 @@ function boot(){
 }
 
 LBX.show=show;LBX.loadCsv=loadCsv;LBX.build=build;LBX.safeUrl=safeUrl;
-LBX.items=function(){return ITEMS};LBX.simScore=simScore;LBX.simScan=simScan;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
+LBX.items=function(){return ITEMS};LBX.meta=function(){return (typeof META!=='undefined')?META:null};LBX.merge=lbxMerge;LBX.simScore=simScore;LBX.simScan=simScan;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
 LBX.events=function(){return evAll()};
 LBX.dkey=dkey;LBX.parseDelim=parseDelim;LBX.refreshFrogs=function(){if(frogs)drawFrogs()};
 
