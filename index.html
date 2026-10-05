@@ -433,7 +433,7 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
-const VERSION="v14";
+const VERSION="v15";
 let LOADFAIL=false;
 // BUILD doubles as the localStorage key. Bumping it makes the board look for data
 // that isn't there and fall into the legacy-recovery path, so the visible version
@@ -2248,11 +2248,13 @@ function padSave(){
   ITEMS.forEach(function(i){
     if(!i.id)i.id=lbxId("CF-");
     seen[i.id]=1;
-    var o=byId[i.id];
-    /* stamp only on a real change, so an untouched row does not win a merge
-       it should have lost */
-    if(!o||o.t!==i.t||!!o.d!==!!i.d||o.deleted)i.touched=now;
-    else i.touched=o.touched||now;
+    /* Do NOT try to detect a change by diffing against META.cluster here:
+       ITEMS holds references to those very objects, so the comparison is an
+       object against itself and never fires. That left `touched` frozen at
+       creation, so an edited note always LOST the newest-wins merge and never
+       reached the other device. The edit handlers stamp it instead; this only
+       backfills a row that has somehow never been stamped. */
+    if(!i.touched)i.touched=now;
     if(i.deleted)delete i.deleted;
   });
 
@@ -2307,6 +2309,7 @@ function padRow(it,ix){
   cb.setAttribute("aria-pressed",String(!!it.d));
   cb.onclick=function(){
     it.d=!it.d;
+    it.touched=lbxNow();
     row.classList.toggle("done",it.d);
     cb.classList.toggle("done",it.d);
     cb.textContent=it.d?"\u2713":"";
@@ -2320,6 +2323,7 @@ function padRow(it,ix){
   inp.setAttribute("aria-label","List item");
   inp.oninput=function(){
     it.t=inp.value;
+    it.touched=lbxNow();     /* stamp at the edit, see padSave for why */
     row.classList.toggle("head",isHeadingLine(it.t));
     padSaveSoon();padStats();
   };
@@ -2332,7 +2336,7 @@ function padRow(it,ix){
   inp.onkeydown=function(e){
     if(e.key==="Enter"){
       e.preventDefault();padFlush();
-      ITEMS.splice(ix+1,0,{t:"",d:false});
+      ITEMS.splice(ix+1,0,{t:"",d:false,touched:lbxNow()});
       padSave();drawPad(ix+1);
     }else if(e.key==="Backspace"&&inp.value===""&&ITEMS.length>1){
       e.preventDefault();padFlush();
@@ -3423,11 +3427,27 @@ function lbxMerge(local,remote,textKey){
       if(rt>lt)byId[r.id]=r;
       return;
     }
-    /* unseen id — but identical text to something live here means both
-       devices migrated the same row separately; keep one, not two */
+    /* Unseen id, but identical text to something live here: both devices
+       migrated the same row separately and gave it different ids. Dropping
+       the remote copy is not enough — the ids stay divergent forever, and the
+       next edit on either side arrives as a brand new row instead of an
+       update. Converge on one id, picked by a rule both devices compute the
+       same way, so they agree without talking. */
     if(!r.deleted&&r[textKey]){
       var k=String(r[textKey]).trim().toLowerCase();
-      if(liveText[k])return;
+      var lid=liveText[k];
+      if(lid){
+        if(r.id<lid){
+          var L=byId[lid], at=order.indexOf(lid);
+          if(at!==-1)order[at]=r.id;
+          delete byId[lid];
+          L.id=r.id;
+          byId[r.id]=L;
+          liveText[k]=r.id;
+          if(String(r.touched||"")>String(L.touched||""))byId[r.id]=r;
+        }
+        return;
+      }
     }
     byId[r.id]=r; order.push(r.id);
   });
@@ -3467,6 +3487,45 @@ function drawSADSafe(){
 }
 
 /* ============================================================
+   Keeping two devices in step without pressing Sync
+
+   The core already syncs on window "focus" and 2.5s after any save,
+   which covers a desktop. A phone is the problem: switching back to
+   a backgrounded tab often fires no focus event at all, so the
+   device sat on stale data until Sync was pressed by hand.
+
+   visibilitychange is the event that does fire on mobile. A slow
+   poll covers the other half — a device left open while the other
+   one is being typed into.
+   ============================================================ */
+var LBX_LASTPULL=0, LBX_POLL_MS=60000, LBX_MIN_GAP=8000;
+
+function lbxCanSync(){
+  try{ return (typeof cfgd==="function")&&cfgd()&&(typeof doSync==="function"); }
+  catch(e){ return false; }
+}
+function lbxPull(force){
+  if(!lbxCanSync())return false;
+  var n=Date.now();
+  /* rapid app-switching fires this repeatedly; one pull per 8s is plenty */
+  if(!force&&n-LBX_LASTPULL<LBX_MIN_GAP)return false;
+  LBX_LASTPULL=n;
+  try{ doSync(true); }catch(e){ return false; }
+  return true;
+}
+
+function lbxAutoWire(){
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="visible")lbxPull(false);
+  });
+  /* iOS restores a backgrounded tab from cache without firing visibilitychange */
+  window.addEventListener("pageshow",function(){ lbxPull(false) });
+  setInterval(function(){
+    if(document.visibilityState==="visible")lbxPull(false);
+  },LBX_POLL_MS);
+}
+
+/* ============================================================
    Release stamp + last-saved clock
 
    BUMP THESE TWO TOGETHER ON EVERY DELIVERY. The version number
@@ -3476,7 +3535,7 @@ function drawSADSafe(){
    and changing it would point the app at an empty key and orphan
    the saved board. That is why the footer said August.
    ============================================================ */
-var LBX_RELEASED="2026-10-01T00:40:00";
+var LBX_RELEASED="2026-10-04T13:00:00";
 var K_SAVED="LBX.lastsave";
 
 function stampWhen(iso,withTime){
@@ -3562,6 +3621,7 @@ function boot(){
     mast.appendChild(ub);
   }
   purgeUndoBtn();
+  lbxAutoWire();
 
   var tabs=E("div","lbxtabs");
   tabs.setAttribute("role","tablist");
@@ -3732,7 +3792,7 @@ function boot(){
   drawPad();
 
   D("lbxadd").onclick=function(){
-    padFlush();ITEMS.push({t:"",d:false});padSave();drawPad(ITEMS.length-1);
+    padFlush();ITEMS.push({t:"",d:false,touched:lbxNow()});padSave();drawPad(ITEMS.length-1);
   };
   D("lbxbulk").onclick=function(){
     padFlush();
@@ -3742,7 +3802,8 @@ function boot(){
   };
   D("lbxbulkCancel").onclick=function(){ D("lbxbulkBox").hidden=true; };
   D("lbxbulkApply").onclick=function(){
-    var next=padParse(bulkBox.value);
+    var next=padParse(bulkBox.value), bnow=lbxNow();
+    next.forEach(function(i){ i.touched=bnow; });
     if(!next.length&&ITEMS.length&&
        !confirm("That empties the list. "+ITEMS.length+" item"+(ITEMS.length===1?"":"s")+" will be deleted. Continue?"))return;
     ITEMS=next;padSave();D("lbxbulkBox").hidden=true;drawPad();
@@ -3836,7 +3897,7 @@ function boot(){
 }
 
 LBX.show=show;LBX.loadCsv=loadCsv;LBX.build=build;LBX.safeUrl=safeUrl;
-LBX.items=function(){return ITEMS};LBX.meta=function(){return (typeof META!=='undefined')?META:null};LBX.merge=lbxMerge;LBX.simScore=simScore;LBX.simScan=simScan;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
+LBX.items=function(){return ITEMS};LBX.meta=function(){return (typeof META!=='undefined')?META:null};LBX.merge=lbxMerge;LBX.pull=function(){return lbxPull(true)};LBX.simScore=simScore;LBX.simScan=simScan;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
 LBX.events=function(){return evAll()};
 LBX.dkey=dkey;LBX.parseDelim=parseDelim;LBX.refreshFrogs=function(){if(frogs)drawFrogs()};
 
