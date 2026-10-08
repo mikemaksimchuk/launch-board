@@ -433,7 +433,7 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
-const VERSION="v17";
+const VERSION="v18";
 let LOADFAIL=false;
 // BUILD doubles as the localStorage key. Bumping it makes the board look for data
 // that isn't there and fall into the legacy-recovery path, so the visible version
@@ -1896,6 +1896,18 @@ html[data-theme="dark"] .lbxfrogs h3{color:var(--text)}
 .lbxfrogs .task{margin-bottom:5px}
 .lbxfrogs .task:last-child{margin-bottom:0}
 .lbxfrogs .none{color:var(--muted);font-size:12.5px;padding:4px 0 2px}
+/* duplicate sensitivity */
+.lbxsens{display:flex;flex-direction:column;gap:14px}
+.lbxsensrow{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:var(--surface)}
+.lbxsenstitle{font-size:13.5px;font-weight:700;color:var(--text)}
+.lbxsensnote{font-size:11.5px;color:var(--muted);margin:2px 0 10px}
+.lbxsensrow input[type=range]{width:100%;margin:0;accent-color:var(--teal)}
+.lbxsensscale{display:flex;justify-content:space-between;font-size:10.5px;
+  text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-top:2px}
+.lbxsenslab{margin-top:8px;font-size:12.5px;font-weight:700;color:var(--teal)}
+html[data-theme="dark"] .lbxsenslab{color:var(--text)}
+.lbxsenslive{margin-top:4px;font-size:12px;color:var(--muted);font-style:italic}
+
 /* right-click menu */
 .lbxctx{position:fixed;z-index:200;min-width:232px;background:var(--surface);
   border:1px solid var(--line);border-radius:10px;padding:5px;
@@ -2537,10 +2549,32 @@ function drawFrogs(){
    website work. It catches restatement, which is the actual failure
    mode when you dictate the same thing twice.
    ============================================================ */
-var SIM_FLAG=0.35,        /* surface it for review                 */
-    SIM_SURE=0.75,        /* almost certainly the same thing       */
-    SIM_SHORT=0.60,       /* bar for very short lines              */
-    SIM_DIVERGE=0.90;     /* below this, a rare-word clash vetoes  */
+var SIM_SURE=0.75;        /* almost certainly the same thing */
+
+/* Five steps rather than a continuous dial, so each one is explainable and
+   reproducible. `flag` is the score a pair must clear; `ceil` is how far up
+   the rare-word clash veto still applies; `short` is the higher bar for
+   two-word titles, where a single shared word is not evidence of anything.
+
+   Loosening mostly means standing the veto down. Measured against realistic
+   board titles, it was the veto — not the threshold — rejecting genuine
+   duplicates like "Send Karle the COOR agenda" / "Email Karle the agenda for
+   COOR", which score 0.75 and differ only by a verb. */
+var SENS=[null,
+ {flag:0.70, ceil:0.95, short:0.80, label:"Strictest", hint:"near-identical titles only"},
+ {flag:0.55, ceil:0.92, short:0.70, label:"Strict",    hint:"small wording differences"},
+ {flag:0.35, ceil:0.90, short:0.60, label:"Balanced",  hint:"shorthand and reordering"},
+ {flag:0.30, ceil:0.55, short:0.50, label:"Loose",     hint:"also catches swapped verbs"},
+ {flag:0.22, ceil:0.00, short:0.40, label:"Loosest",   hint:"anything that looks close"}];
+
+function sensOf(which){
+  var S=null;
+  try{ S=lbxSettings(); }catch(e){}
+  var n=(S&&S.sens&&S.sens[which]);
+  if(!n)n=(which==="purge")?4:3;      /* sweep is calibrated at 3; the board
+                                         needs 4 to catch reworded duplicates */
+  return SENS[Math.min(5,Math.max(1,n|0))];
+}
 
 var STOP=("a about an and are as at be but by for from get go had has have i if in into is it "+
   "its me my need of on or our out over re should so than that the their then there these they "+
@@ -2629,16 +2663,60 @@ function simClash(a,b,df,aCounted,bCounted){
   }
   var inA=(aCounted===undefined)?false:!!aCounted;
   var inB=(bCounted===undefined)?true:!!bCounted;
-  var A=new Set(simTokens(a)), B=new Set(simTokens(b)), aOnly=0, bOnly=0;
-  A.forEach(function(w){ if(!B.has(w)&&rare(w,inA,false))aOnly++ });
-  B.forEach(function(w){ if(!A.has(w)&&rare(w,inB,false))bOnly++ });
-  return aOnly>0&&bOnly>0;
+  var A=new Set(simTokens(a)), B=new Set(simTokens(b));
+  var aU=[], bU=[];
+  A.forEach(function(w){ if(!B.has(w)&&rare(w,inA,false))aU.push(w) });
+  B.forEach(function(w){ if(!A.has(w)&&rare(w,inB,false))bU.push(w) });
+  if(!aU.length||!bU.length)return false;
+
+  /* Before calling it a clash, reconcile shorthand. The rule was calibrated at
+     sweep time, where a dictated line is a shorter SUBSET of the task, so each
+     side rarely owns a word. Board-wide that is not how duplicates look —
+     "Draft the Lapeer SOW" vs "Draft Lapeer scope of work", "AI4MI repository"
+     vs "AI4MI repo". Both sides own a rare word, the veto fires, and a real
+     duplicate is thrown away. An abbreviation is not a different subject. */
+  function prefixish(w,v){
+    if(w===v)return true;
+    var sh=w.length<v.length?w:v, lo=w.length<v.length?v:w;
+    return sh.length>=3&&lo.indexOf(sh)===0;        /* repo / repository */
+  }
+  function acronymOf(word,words){
+    /* slide a window: "sow" is the initials of "scope of work", which sits at
+       the END of "Draft Lapeer scope of work", not the start */
+    if(word.length<2||word.length>6)return false;
+    var n=word.length;
+    for(var st=0;st+n<=words.length;st++){
+      var ini="";
+      for(var k=0;k<n;k++)ini+=words[st+k].charAt(0);
+      if(ini===word)return true;
+    }
+    return false;
+  }
+  /* raw token lists keep stopwords, which acronyms are built from */
+  function raws(v){
+    return String(v||"").toLowerCase().replace(/[^a-z0-9\s]+/g," ")
+      .split(/\s+/).filter(Boolean);
+  }
+  var rawA=raws(a), rawB=raws(b);
+
+  aU=aU.filter(function(w){
+    if(bU.some(function(v){return prefixish(w,v)}))return false;
+    if(acronymOf(w,rawB))return false;
+    return true;
+  });
+  bU=bU.filter(function(w){
+    if(A.size&&[].slice.call(A).some(function(v){return prefixish(w,v)}))return false;
+    if(acronymOf(w,rawA))return false;
+    return true;
+  });
+  return aU.length>0&&bU.length>0;
 }
 
 /* Compare every unchecked pad line against open tasks AND against the
    other lines in the same sweep, so the same thing dictated twice in
    one night is caught too. */
-function simScan(items,tasks){
+function simScan(items,tasks,lv){
+  lv=lv||sensOf("sweep");
   var df=simDF(tasks), out=[], filed=[];
   items.forEach(function(it){
     var best=null;
@@ -2646,9 +2724,9 @@ function simScan(items,tasks){
       var sc=simScore(it.t,title);
       if(!sc.n)return;
       var min=Math.min(sc.na,sc.nb);
-      var bar=(min<3)?SIM_SHORT:SIM_FLAG;      /* short lines need more */
+      var bar=(min<3)?lv.short:lv.flag;        /* short lines need more */
       if(sc.n<bar)return;
-      if(sc.n<SIM_DIVERGE&&simClash(it.t,title,df))return;
+      if(sc.n<lv.ceil&&simClash(it.t,title,df))return;
       if(!best||sc.n>best.score)best={score:sc.n,title:title,ref:ref,within:within};
     }
     tasks.forEach(function(t){consider(t.title,t,false)});
@@ -3189,7 +3267,8 @@ function purgeRelated(a,b){
   return up(a,b.id)||up(b,a.id);
 }
 
-function purgeScan(){
+function purgeScan(lv){
+  lv=lv||sensOf("purge");
   var list=[];
   try{
     if(typeof alive==="function")
@@ -3213,9 +3292,9 @@ function purgeScan(){
       if(purgeRelated(A.t,B.t))continue;                 /* nesting, not duplication */
       sc=Math.max(simDice(A.tok,B.tok),simDice(A.tri,B.tri));
       if(!sc)continue;
-      bar=(Math.min(A.n,B.n)<3)?SIM_SHORT:SIM_FLAG;
+      bar=(Math.min(A.n,B.n)<3)?lv.short:lv.flag;
       if(sc<bar)continue;
-      if(sc<SIM_DIVERGE&&simClash(A.t.title,B.t.title,df,true,true))continue;
+      if(sc<lv.ceil&&simClash(A.t.title,B.t.title,df,true,true))continue;
       pairs.push({a:A.t,b:B.t,score:sc});
     }
   }
@@ -3970,6 +4049,58 @@ function setOpen(){
   });
   body.appendChild(fl);
 
+  /* ---- duplicate sensitivity ---- */
+  body.appendChild(E("h4","lbxseth","Duplicate detection"));
+  var sens=E("div","lbxsens");
+
+  function sensRow(which,title,note,liveCount){
+    var S2=lbxSettings();
+    if(!S2.sens)S2.sens={};
+    var cur=S2.sens[which]||((which==="purge")?4:3);
+
+    var box=E("div","lbxsensrow");
+    box.appendChild(E("div","lbxsenstitle",title));
+    box.appendChild(E("div","lbxsensnote",note));
+
+    var r=document.createElement("input");
+    r.type="range";r.min="1";r.max="5";r.step="1";r.value=String(cur);
+    r.setAttribute("aria-label",title);
+    var lab=E("div","lbxsenslab");
+    var live=E("div","lbxsenslive");
+
+    function paint(){
+      var n=parseInt(r.value,10), L=SENS[n];
+      lab.textContent=L.label+" \u2014 "+L.hint;
+      if(!liveCount){ live.textContent=""; return; }
+      var found=0;
+      try{ found=purgeScan(L).length; }catch(e){ live.textContent=""; return; }
+      live.textContent="At this setting: "+found+" possible duplicate"+
+        (found===1?"":"s")+" on your board right now";
+    }
+    r.oninput=function(){
+      var n=parseInt(r.value,10);
+      S2.sens[which]=n;S2.touched=lbxNow();
+      paint();setPersist();
+    };
+    paint();
+
+    var scale=E("div","lbxsensscale");
+    scale.appendChild(E("span",null,"Strict"));
+    scale.appendChild(E("span",null,"Loose"));
+
+    box.appendChild(r);
+    box.appendChild(scale);
+    box.appendChild(lab);
+    if(liveCount)box.appendChild(live);
+    return box;
+  }
+
+  sens.appendChild(sensRow("purge","Purge Dupes — scanning the whole board",
+    "How alike two tasks must be before they are offered for review.",true));
+  sens.appendChild(sensRow("sweep","Sweeping Cluster-Files to the task list",
+    "How alike a swept line must be to something already on the board.",false));
+  body.appendChild(sens);
+
   /* ---- sync ---- */
   body.appendChild(E("h4","lbxseth","Sync"));
   var sy=E("div","lbxsetsync");
@@ -4056,7 +4187,7 @@ function setDeleteCat(name,used,redraw){
    and changing it would point the app at an empty key and orphan
    the saved board. That is why the footer said August.
    ============================================================ */
-var LBX_RELEASED="2026-10-08T10:00:00";
+var LBX_RELEASED="2026-10-08T16:00:00";
 var K_SAVED="LBX.lastsave";
 
 function stampWhen(iso,withTime){
@@ -4503,7 +4634,7 @@ function boot(){
 }
 
 LBX.show=show;LBX.loadCsv=loadCsv;LBX.build=build;LBX.safeUrl=safeUrl;
-LBX.items=function(){return ITEMS};LBX.meta=function(){return (typeof META!=='undefined')?META:null};LBX.merge=lbxMerge;LBX.pull=function(){return lbxPull(true)};LBX.settings=lbxSettings;LBX.setOpen=setOpen;LBX.ctxOpen=ctxOpen;LBX.simScore=simScore;LBX.simScan=simScan;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
+LBX.items=function(){return ITEMS};LBX.meta=function(){return (typeof META!=='undefined')?META:null};LBX.merge=lbxMerge;LBX.pull=function(){return lbxPull(true)};LBX.settings=lbxSettings;LBX.setOpen=setOpen;LBX.ctxOpen=ctxOpen;LBX.simScore=simScore;LBX.simScan=simScan;LBX.simClash=simClash;LBX.simDF=simDF;LBX.sensOf=sensOf;LBX.SENS=SENS;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
 LBX.events=function(){return evAll()};
 LBX.dkey=dkey;LBX.parseDelim=parseDelim;LBX.refreshFrogs=function(){if(frogs)drawFrogs()};
 
