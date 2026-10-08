@@ -433,7 +433,7 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
-const VERSION="v15";
+const VERSION="v17";
 let LOADFAIL=false;
 // BUILD doubles as the localStorage key. Bumping it makes the board look for data
 // that isn't there and fall into the legacy-recovery path, so the visible version
@@ -1715,6 +1715,53 @@ load().then(()=>{
 .wrap footer .mastbtns{gap:6px}
 }
 
+/* ---- unified sticky toolbar ----
+   Every action button in one place, grouped by what it does to your data,
+   and pinned so the tabs stay reachable down a long task list. */
+.lbxbar{
+  position:sticky; top:0; z-index:40;
+  background:var(--page);
+  margin:0 -20px; padding:10px 20px 0;
+  border-bottom:0;
+}
+.lbxbar.stuck{box-shadow:0 10px 14px -12px rgba(9,29,32,.45)}
+html[data-theme="dark"] .lbxbar.stuck{box-shadow:0 10px 14px -12px rgba(0,0,0,.7)}
+.lbxacts{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding-bottom:10px}
+.lbxgrp{display:flex;gap:5px;align-items:center}
+.lbxgrp+.lbxgrp{
+  border-left:1px solid var(--line); padding-left:9px; margin-left:2px;
+}
+.lbxspacer{flex:1 1 auto}
+
+/* grouped by consequence, not by where the button used to live */
+.lbxbar button{font-size:12px;padding:7px 11px;white-space:nowrap}
+.lbxg-add{background:var(--orange);border-color:#d97d0d;color:#3d2200;font-weight:700}
+.lbxg-add:hover{filter:brightness(1.06)}
+.lbxg-sync{background:var(--teal);border-color:var(--teal);color:var(--white);font-weight:700}
+.lbxg-sync:hover{background:var(--darkTeal);border-color:var(--darkTeal)}
+.lbxg-data{background:var(--surface);border-color:var(--midTeal);color:var(--teal);font-weight:600}
+.lbxg-data:hover{background:var(--surface2)}
+html[data-theme="dark"] .lbxg-data{color:var(--text)}
+.lbxg-danger{background:var(--surface);border-color:#c0705c;color:#9e3b1e;font-weight:600}
+.lbxg-danger:hover{background:#fdeeea;border-color:#a84c2a}
+html[data-theme="dark"] .lbxg-danger{color:#f0a05a;border-color:#7a4432;background:var(--surface)}
+html[data-theme="dark"] .lbxg-danger:hover{background:#2a1f14}
+.lbxg-util{background:var(--surface);border-color:var(--line);color:var(--muted);font-weight:600}
+.lbxg-util:hover{color:var(--teal);border-color:var(--midTeal)}
+.lbxbar .lbxtabs{margin:0}
+
+/* On a phone the toolbar would eat a third of the screen if it wrapped.
+   One scrollable row instead, so the sticky block stays short. */
+@media(max-width:700px){
+  .lbxbar{margin:0 -12px;padding:8px 12px 0}
+  .lbxacts{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:8px}
+  .lbxacts>*{flex:0 0 auto}
+  .lbxbar button{font-size:11.5px;padding:6px 9px}
+  .lbxacts::-webkit-scrollbar{display:none}
+  .lbxspacer{display:none}
+  .lbxgrp+.lbxgrp{padding-left:7px}
+}
+
 /* ---- tab bar ---- */
 .lbxtabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;
 border-bottom:3px solid var(--green);margin:18px 0 0}
@@ -1743,10 +1790,21 @@ html[data-theme="dark"] .lbxnote{color:var(--text)}
 
 /* ---- chat finder ---- */
 #lbxq{flex:1;min-width:170px}
-.lbxscroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
-table.lbxtbl{border-collapse:collapse;width:100%;font-size:13px}
+/* NOT overflow-x:auto. That makes this a scrollport, and position:sticky on the
+   header then pins to THIS box — which never scrolls vertically — so the sticky
+   header silently did nothing. The table wraps instead (only the date column is
+   nowrap), so the scroller was not earning its keep. */
+.lbxscroll{overflow:visible;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+/* border-collapse:collapse disables position:sticky on cells in Chrome, so the
+   header could never pin. separate + zero spacing looks identical here because
+   the only rules are a top border on each td. */
+table.lbxtbl{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+/* pinned BELOW the toolbar, not at the viewport top; --lbxbarh is measured live
+   because the toolbar wraps to two rows at some widths */
 .lbxtbl th{background:var(--darkTeal);color:#fff;text-align:left;font-weight:600;
-padding:9px 12px;white-space:nowrap;position:sticky;top:0;cursor:pointer;user-select:none}
+padding:9px 12px;white-space:nowrap;position:sticky;top:var(--lbxbarh,0px);z-index:5;
+cursor:pointer;user-select:none}
+.lbxtbl td:nth-child(3),.lbxtbl td:nth-child(4){overflow-wrap:anywhere}
 html[data-theme="dark"] .lbxtbl th{background:var(--surface2);color:var(--text)}
 .lbxtbl th .lbxdir{opacity:.6;font-size:10px;margin-left:4px}
 .lbxtbl td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
@@ -1838,6 +1896,60 @@ html[data-theme="dark"] .lbxfrogs h3{color:var(--text)}
 .lbxfrogs .task{margin-bottom:5px}
 .lbxfrogs .task:last-child{margin-bottom:0}
 .lbxfrogs .none{color:var(--muted);font-size:12.5px;padding:4px 0 2px}
+/* right-click menu */
+.lbxctx{position:fixed;z-index:200;min-width:232px;background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;padding:5px;
+  box-shadow:0 14px 34px -10px rgba(9,29,32,.4);font-size:13px}
+html[data-theme="dark"] .lbxctx{box-shadow:0 14px 34px -10px rgba(0,0,0,.75)}
+.lbxctxhead{font-size:11.5px;font-weight:700;color:var(--muted);padding:6px 9px 7px;
+  border-bottom:1px solid var(--line);margin-bottom:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+.lbxctxrow{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:6px;cursor:pointer}
+.lbxctxrow:hover{background:var(--surface2)}
+.lbxctxlab{flex:1;font-weight:600;color:var(--text)}
+.lbxctxval{font-size:11.5px;color:var(--muted);max-width:110px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbxctxarr{color:var(--muted);font-size:14px}
+.lbxctxrow.toggle .lbxctxarr{display:none}
+.lbxctxsub{display:flex;flex-direction:column;gap:1px;padding:3px 4px 5px 14px;
+  margin:0 4px 3px;border-left:2px solid var(--line)}
+.lbxctxitem{text-align:left;font-size:12.5px;padding:6px 9px;border-radius:5px;
+  border:1px solid transparent;background:transparent;color:var(--text);font-weight:500;cursor:pointer}
+.lbxctxitem:hover{background:var(--surface2);border-color:var(--line)}
+.lbxctxitem.on{font-weight:800;color:var(--teal);background:var(--surface2)}
+html[data-theme="dark"] .lbxctxitem.on{color:var(--text)}
+.lbxctxitem.danger{color:#9e3b1e}
+html[data-theme="dark"] .lbxctxitem.danger{color:#f0a05a}
+.lbxctxdate{padding:5px 9px}
+.lbxctxdate input{width:100%;font-size:12.5px}
+
+/* settings */
+.lbxsetdlg{max-width:720px}
+.lbxseth{margin:18px 0 9px;font-size:13px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.05em;color:var(--darkTeal);border-bottom:2px solid var(--green);padding-bottom:5px}
+.lbxsetdlg .lbxdupwrap>.lbxseth:first-child{margin-top:0}
+html[data-theme="dark"] .lbxseth{color:var(--text)}
+.lbxsetcats{display:flex;flex-direction:column;gap:6px}
+.lbxsetcat{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface)}
+.lbxsetsw{font-size:11.5px;font-weight:800;padding:3px 11px;border-radius:99px;border:2px solid;
+  white-space:nowrap}
+.lbxsetcount{font-size:11.5px;color:var(--muted);flex:1}
+.lbxsetpick{display:flex;gap:4px}
+.lbxsetpick input[type=color]{width:26px;height:26px;padding:0;border:1px solid var(--line);
+  border-radius:5px;background:none;cursor:pointer}
+.lbxsetadd{display:flex;gap:7px;margin-top:4px}
+.lbxsetadd input{flex:1;font-size:13px}
+.lbxsetfields{display:grid;gap:7px 14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.lbxsetfield{display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer}
+.lbxsetfield input{margin:0;cursor:pointer}
+.lbxsetsync{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+@media(max-width:620px){
+.lbxsetcat{gap:7px}
+.lbxsetcount{flex:1 0 100%;order:3}
+.lbxctx{min-width:0;max-width:calc(100vw - 16px)}
+}
+
 /* purge dupes */
 #lbxundo[hidden]{display:none}
 #lbxundo{background:var(--surface);color:var(--teal);border-color:var(--line)}
@@ -3526,6 +3638,415 @@ function lbxAutoWire(){
 }
 
 /* ============================================================
+   Settings, and the right-click menu
+
+   CATS / CATSD are const OBJECTS — const blocks reassignment, not
+   mutation, so keys can be added and removed in place and
+   catColors() picks them up on the next render.
+
+   Three things in the core are built ONCE at boot and go stale the
+   moment a category changes, so each has to be refreshed by hand:
+     · CATORDER — a const array snapshot used for sort order. Also
+       mutable in place; length=0 then re-push.
+     · the #aCat and #bCat selects in the Add and Batch dialogs.
+     · nothing else reads the key list outside a render.
+
+   Settings live in META.settings so they sync and land in backups,
+   the same route events and cluster-files take.
+   ============================================================ */
+var CATSAPPLIED=false;
+var FIELD_KEYS=[
+  ["cat","Category"],["tier","Tier"],["status","Status"],["due","Due date"],
+  ["effort","Effort"],["prio","Priority"],["recur","Recurring"],
+  ["frog","Frog"],["verify","Verify"],["stale","Gone quiet"],["nested","Nested count"]
+];
+
+function lbxSettings(){
+  if(typeof META==="undefined"||!META)return null;
+  if(!META.settings||typeof META.settings!=="object")META.settings={};
+  if(!META.settings.fields)META.settings.fields={};
+  return META.settings;
+}
+function fieldOn(k){
+  var S=lbxSettings();
+  if(!S)return true;
+  return S.fields[k]!==false;      /* default on; only an explicit false hides */
+}
+
+/* Rebuild the two snapshots the core took at boot. */
+function lbxRefreshCats(){
+  try{
+    if(typeof CATORDER!=="undefined"&&Array.isArray(CATORDER)){
+      CATORDER.length=0;
+      Object.keys(CATS).forEach(function(c){CATORDER.push(c)});
+    }
+  }catch(e){}
+  ["aCat","bCat"].forEach(function(id){
+    var sel=D(id);
+    if(!sel)return;
+    var keep=sel.value;
+    sel.textContent="";
+    Object.keys(CATS).forEach(function(c){
+      var o=E("option",null,c);o.value=c;sel.appendChild(o);
+    });
+    if(keep&&CATS[keep])sel.value=keep;
+  });
+}
+
+/* Push saved categories over the built-ins. Only a full replace once the user
+   has actually customised, so an untouched board keeps its defaults. */
+function lbxApplyCats(){
+  var S=lbxSettings();
+  if(!S||!S.cats)return;
+  try{
+    Object.keys(CATS).forEach(function(k){ if(!S.cats[k])delete CATS[k] });
+    Object.keys(CATSD).forEach(function(k){ if(!S.cats[k])delete CATSD[k] });
+    Object.keys(S.cats).forEach(function(k){
+      CATS[k]=S.cats[k].slice();
+      CATSD[k]=(S.catsd&&S.catsd[k])?S.catsd[k].slice():["#7d8a8c","#1b292c"];
+    });
+    lbxRefreshCats();
+  }catch(e){}
+}
+var setTimer=null;
+/* Persist on every change rather than on Done: a refresh, a crash or simply
+   closing the tab between the two would otherwise lose the edit silently. */
+function setPersist(){
+  if(setTimer)clearTimeout(setTimer);
+  setTimer=setTimeout(function(){
+    setTimer=null;
+    try{ if(typeof save==="function")Promise.resolve(save()).catch(function(){}); }catch(e){}
+  },250);
+}
+function lbxSaveCats(){
+  var S=lbxSettings();
+  if(!S)return;
+  S.cats={};S.catsd={};
+  Object.keys(CATS).forEach(function(k){
+    S.cats[k]=CATS[k].slice();
+    S.catsd[k]=(CATSD[k]||["#7d8a8c","#1b292c"]).slice();
+  });
+  S.touched=lbxNow();
+}
+
+/* Hide pills the user has switched off. Done by post-processing the row rather
+   than reimplementing taskEl, so the two cannot drift. Most pills carry a
+   class; cat, status and effort are matched against the task's own values,
+   which is exact. */
+function lbxApplyFields(d,t){
+  var m=d.querySelector(".meta");
+  if(!m)return;
+  var kids=[].slice.call(m.children);
+  kids.forEach(function(el2){
+    var cls=el2.className||"", txt=(el2.textContent||"").trim(), key=null;
+    if(/\btier\b/.test(cls))key="tier";
+    else if(/\b(due|od)\b/.test(cls))key="due";
+    else if(/\bprio/.test(cls))key="prio";
+    else if(/\brecur\b/.test(cls))key="recur";
+    else if(/\bfrogp\b/.test(cls))key="frog";
+    else if(/\bvf\b/.test(cls))key="verify";
+    else if(/\bstale\b/.test(cls))key="stale";
+    else if(t.cat&&txt===t.cat)key="cat";
+    else if(t.status&&txt===t.status)key="status";
+    else if(t.effort&&txt===t.effort)key="effort";
+    else if(/^\d+ nested$/.test(txt))key="nested";
+    if(key&&!fieldOn(key))el2.style.display="none";
+  });
+}
+
+/* ---------- right-click menu on any task row ---------- */
+var CTX=null;
+function ctxClose(){ if(CTX&&CTX.parentNode)CTX.parentNode.removeChild(CTX); CTX=null; }
+
+function ctxRow(label,value,onPick){
+  var r=E("div","lbxctxrow");
+  r.appendChild(E("span","lbxctxlab",label));
+  if(value!==null&&value!==undefined)r.appendChild(E("span","lbxctxval",value));
+  r.appendChild(E("span","lbxctxarr","\u203A"));
+  r.onclick=function(e){e.stopPropagation();onPick(r)};
+  return r;
+}
+function ctxSub(anchorRow,items,current,pick){
+  var old=CTX.querySelector(".lbxctxsub");
+  if(old)old.parentNode.removeChild(old);
+  var box=E("div","lbxctxsub");
+  items.forEach(function(it){
+    var v=(typeof it==="string")?it:it[0], lab=(typeof it==="string")?it:it[1];
+    var b=E("button","lbxctxitem"+(v===current?" on":""),lab);
+    b.type="button";
+    b.onclick=function(e){e.stopPropagation();pick(v)};
+    box.appendChild(b);
+  });
+  anchorRow.insertAdjacentElement("afterend",box);
+}
+
+async function ctxApply(t,fn){
+  try{ fn(); if(typeof touch==="function")touch(t); }catch(e){}
+  ctxClose();
+  try{ if(typeof save==="function")await save(); }catch(e){}
+  try{ if(typeof render==="function")render(); }catch(e){}
+}
+
+function ctxOpen(t,x,y){
+  ctxClose();
+  var m=E("div","lbxctx");
+  m.appendChild(E("div","lbxctxhead",t.title||"(untitled)"));
+
+  m.appendChild(ctxRow("Category",t.cat||"\u2014",function(r){
+    ctxSub(r,Object.keys(CATS),t.cat,function(v){ ctxApply(t,function(){t.cat=v}) });
+  }));
+  m.appendChild(ctxRow("Status",t.status||"Open",function(r){
+    ctxSub(r,(typeof STATUSES!=="undefined")?STATUSES:["Open","Done"],t.status,
+      function(v){ ctxApply(t,function(){
+        t.status=v;
+        if(v==="Done"&&!t.done)t.done=lbxNow();
+        if(v!=="Done"&&v!=="Archived")t.done="";
+      }) });
+  }));
+  m.appendChild(ctxRow("Due",t.due||"none",function(r){
+    function iso(n){var d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()+n);
+      return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+    var old=CTX.querySelector(".lbxctxsub"); if(old)old.parentNode.removeChild(old);
+    var box=E("div","lbxctxsub");
+    [["Today",iso(0)],["Tomorrow",iso(1)],["In a week",iso(7)],["In two weeks",iso(14)]]
+      .forEach(function(o){
+        var b=E("button","lbxctxitem"+(t.due===o[1]?" on":""),o[0]);
+        b.type="button";
+        b.onclick=function(e){e.stopPropagation();ctxApply(t,function(){t.due=o[1]})};
+        box.appendChild(b);
+      });
+    var pickWrap=E("div","lbxctxdate");
+    var inp=document.createElement("input");
+    inp.type="date";inp.value=t.due||"";inp.setAttribute("aria-label","Pick a due date");
+    inp.onclick=function(e){e.stopPropagation()};
+    inp.onchange=function(){ ctxApply(t,function(){t.due=inp.value}) };
+    pickWrap.appendChild(inp);
+    box.appendChild(pickWrap);
+    var clr=E("button","lbxctxitem danger","Clear the due date");
+    clr.type="button";
+    clr.onclick=function(e){e.stopPropagation();ctxApply(t,function(){t.due=""})};
+    box.appendChild(clr);
+    r.insertAdjacentElement("afterend",box);
+  }));
+
+  var fr=E("div","lbxctxrow toggle");
+  fr.appendChild(E("span","lbxctxlab",t.frog?"\uD83D\uDC38 Remove from Frogs":"\uD83D\uDC38 Eat the Frog"));
+  fr.onclick=function(e){e.stopPropagation();ctxApply(t,function(){t.frog=!t.frog})};
+  m.appendChild(fr);
+
+  var pn=E("div","lbxctxrow toggle");
+  pn.appendChild(E("span","lbxctxlab",t.pin?"\u2605 Unpin":"\u2605 Pin (big heat boost)"));
+  pn.onclick=function(e){e.stopPropagation();ctxApply(t,function(){t.pin=t.pin?"":"P1"})};
+  m.appendChild(pn);
+
+  document.body.appendChild(m);
+  CTX=m;
+  /* keep it on screen near the cursor */
+  var r=m.getBoundingClientRect();
+  var left=Math.min(x,window.innerWidth-r.width-8);
+  var top=Math.min(y,window.innerHeight-r.height-8);
+  m.style.left=Math.max(6,left)+"px";
+  m.style.top=Math.max(6,top)+"px";
+}
+
+function ctxWire(){
+  document.addEventListener("contextmenu",function(e){
+    var row=e.target.closest&&e.target.closest(".task[data-lbxid]");
+    if(!row)return;
+    /* leave the browser menu alone inside an open editor */
+    var tag=(e.target.tagName||"").toUpperCase();
+    if(tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT")return;
+    var t=null;
+    try{ t=TASKS.find(function(x){return x.id===row.getAttribute("data-lbxid")}); }catch(_){}
+    if(!t)return;
+    e.preventDefault();
+    ctxOpen(t,e.clientX,e.clientY);
+  });
+  document.addEventListener("click",function(e){
+    if(CTX&&!CTX.contains(e.target))ctxClose();
+  });
+  document.addEventListener("keydown",function(e){ if(e.key==="Escape")ctxClose() });
+  window.addEventListener("scroll",ctxClose,{passive:true});
+}
+
+/* ---------- the settings dialog ---------- */
+function setOpen(){
+  var S=lbxSettings();
+  if(!S){ alert("The board hasn't finished loading yet."); return; }
+
+  var dlg=document.createElement("dialog");
+  dlg.className="lbxdupdlg lbxsetdlg";
+  dlg.appendChild(E("h3",null,"Settings"));
+  dlg.appendChild(E("p","lbxdupsub",
+    "Changes save to the board and sync with everything else, so they follow you to your other devices."));
+
+  var body=E("div","lbxdupwrap");
+
+  /* ---- categories ---- */
+  body.appendChild(E("h4","lbxseth","Categories"));
+  var catBox=E("div","lbxsetcats");
+  body.appendChild(catBox);
+
+  function drawCats(){
+    catBox.textContent="";
+    var names=Object.keys(CATS);
+    names.forEach(function(name){
+      var row=E("div","lbxsetcat");
+      var used=0;
+      try{ used=alive().filter(function(t){return t.cat===name}).length; }catch(e){}
+
+      var sw=E("span","lbxsetsw");
+      sw.style.borderColor=CATS[name][0];
+      sw.style.background=CATS[name][1];
+      sw.style.color=CATS[name][0];
+      sw.textContent=name;
+      row.appendChild(sw);
+
+      var count=E("span","lbxsetcount",used+(used===1?" task":" tasks"));
+      row.appendChild(count);
+
+      var pickers=E("span","lbxsetpick");
+      [["Light text",CATS,0],["Light fill",CATS,1],
+       ["Dark text",CATSD,2],["Dark fill",CATSD,3]].forEach(function(cfg){
+        var map=cfg[1], idx=cfg[2]%2;
+        var i=document.createElement("input");
+        i.type="color";i.title=cfg[0];
+        if(!map[name])map[name]=["#7d8a8c","#1b292c"];
+        i.value=map[name][idx];
+        i.onchange=function(){
+          map[name][idx]=i.value;
+          lbxSaveCats();setPersist();
+          drawCats();
+          try{ if(typeof render==="function")render(); }catch(e){}
+        };
+        pickers.appendChild(i);
+      });
+      row.appendChild(pickers);
+
+      var del=E("button","mini","Delete");
+      del.type="button";
+      del.onclick=function(){ setDeleteCat(name,used,drawCats) };
+      if(names.length<2)del.disabled=true;
+      row.appendChild(del);
+      catBox.appendChild(row);
+    });
+
+    var add=E("div","lbxsetadd");
+    var ni=document.createElement("input");
+    ni.type="text";ni.placeholder="New category name";ni.setAttribute("aria-label","New category name");
+    var nb=E("button","pri","Add");
+    nb.type="button";
+    nb.onclick=function(){
+      var v=ni.value.trim();
+      if(!v){ni.focus();return}
+      if(CATS[v]){ alert("\u201c"+v+"\u201d already exists."); return; }
+      CATS[v]=["#115e6e","#f3fafc"];
+      CATSD[v]=["#5fb0bd","#162124"];
+      lbxSaveCats();lbxRefreshCats();setPersist();
+      ni.value="";drawCats();
+      try{ if(typeof render==="function")render(); }catch(e){}
+    };
+    ni.onkeydown=function(e){ if(e.key==="Enter"){e.preventDefault();nb.click()} };
+    add.appendChild(ni);add.appendChild(nb);
+    catBox.appendChild(add);
+  }
+  drawCats();
+
+  /* ---- fields shown on a task row ---- */
+  body.appendChild(E("h4","lbxseth","Show on each task"));
+  var fl=E("div","lbxsetfields");
+  FIELD_KEYS.forEach(function(f){
+    var lab=E("label","lbxsetfield");
+    var c=document.createElement("input");
+    c.type="checkbox";c.checked=fieldOn(f[0]);
+    c.onchange=function(){
+      S.fields[f[0]]=c.checked;
+      S.touched=lbxNow();
+      setPersist();
+      try{ if(typeof render==="function")render(); }catch(e){}
+    };
+    lab.appendChild(c);lab.appendChild(document.createTextNode(f[1]));
+    fl.appendChild(lab);
+  });
+  body.appendChild(fl);
+
+  /* ---- sync ---- */
+  body.appendChild(E("h4","lbxseth","Sync"));
+  var sy=E("div","lbxsetsync");
+  var sstat=E("span","lbxsetcount");
+  try{ sstat.textContent=(typeof cfgd==="function"&&cfgd())
+        ? "Configured — this board syncs through GitHub"
+        : "Not set up — this device only"; }
+  catch(e){ sstat.textContent=""; }
+  sy.appendChild(sstat);
+  var sb=E("button","pri","Sync setup\u2026");
+  sb.type="button";
+  sb.onclick=function(){
+    setShut();
+    var b=D("bSyncCfg");
+    if(b)b.click();
+    else alert("The sync setup dialog isn't available.");
+  };
+  sy.appendChild(sb);
+  body.appendChild(sy);
+
+  dlg.appendChild(body);
+
+  var acts=E("div","lbxdupacts");
+  var right=E("div","lbxdupgo");
+  var done=E("button","pri","Done");
+  done.type="button";
+  done.onclick=function(){ setShut(true) };
+  right.appendChild(done);
+  acts.appendChild(E("div","lbxdupbulk"));acts.appendChild(right);
+  dlg.appendChild(acts);
+
+  function setShut(persist){
+    try{dlg.close()}catch(e){}
+    if(dlg.parentNode)dlg.parentNode.removeChild(dlg);
+    if(persist){
+      try{ if(typeof save==="function")save(); }catch(e){}
+      try{ if(typeof render==="function")render(); }catch(e){}
+    }
+  }
+  dlg.addEventListener("cancel",function(e){e.preventDefault();setShut(true)});
+  document.body.appendChild(dlg);
+  try{dlg.showModal()}catch(e){dlg.setAttribute("open","")}
+}
+
+/* Deleting a category would orphan every task pointing at it: catColors falls
+   back to grey, but the task vanishes from the chip filter and is effectively
+   lost. So the tasks have to go somewhere first. */
+function setDeleteCat(name,used,redraw){
+  var others=Object.keys(CATS).filter(function(c){return c!==name});
+  if(!others.length){ alert("You need at least one category."); return; }
+  var moveTo=others[0];
+  if(used){
+    var list=others.map(function(c,i){return (i+1)+") "+c}).join("\n");
+    var ans=prompt("\u201c"+name+"\u201d has "+used+" task"+(used===1?"":"s")+
+      ".\n\nMove "+(used===1?"it":"them")+" to which category?\n\n"+list+
+      "\n\nType a number, or Cancel to keep the category.","1");
+    if(ans===null)return;
+    var n=parseInt(ans,10);
+    if(!(n>=1&&n<=others.length)){ alert("That wasn't one of the numbers."); return; }
+    moveTo=others[n-1];
+  }else if(!confirm("Delete \u201c"+name+"\u201d? Nothing is using it.")){ return; }
+
+  var moved=0;
+  try{
+    TASKS.forEach(function(t){
+      if(t.cat===name){ t.cat=moveTo; if(typeof touch==="function")touch(t); moved++; }
+    });
+  }catch(e){}
+  delete CATS[name];delete CATSD[name];
+  lbxSaveCats();lbxRefreshCats();
+  redraw();
+  try{ if(typeof save==="function")save(); }catch(e){}
+  try{ if(typeof render==="function")render(); }catch(e){}
+  say(moved?("Deleted \u2014 "+moved+" task"+(moved===1?"":"s")+" moved to "+moveTo):"Category deleted");
+}
+
+/* ============================================================
    Release stamp + last-saved clock
 
    BUMP THESE TWO TOGETHER ON EVERY DELIVERY. The version number
@@ -3535,7 +4056,7 @@ function lbxAutoWire(){
    and changing it would point the app at an empty key and orphan
    the saved board. That is why the footer said August.
    ============================================================ */
-var LBX_RELEASED="2026-10-04T13:00:00";
+var LBX_RELEASED="2026-10-08T10:00:00";
 var K_SAVED="LBX.lastsave";
 
 function stampWhen(iso,withTime){
@@ -3570,7 +4091,12 @@ function stampFooter(){
    Tabs — existing nodes are MOVED into panels, never rebuilt,
    so every id render() writes to still resolves.
    ============================================================ */
-var TABS=["tasks","links","finder","pad","sad"];
+/* Chat Finder retired: the CSV behind it was too much upkeep to be worth it.
+   The code is left in place and gated on this one flag rather than ripped out,
+   so turning it back on is a one-word change. Its cached rows stay in
+   LBX.finder, harmless and ignored. */
+var FINDER=false;
+var TABS=FINDER?["tasks","links","finder","pad","sad"]:["tasks","links","pad","sad"];
 function show(name){
   TABS.forEach(function(t){
     var tab=D("lbxtab-"+t),p=D("lbxpanel-"+t);
@@ -3591,7 +4117,7 @@ function show(name){
   }
   if(name==="pad"){drawFrogs();drawPadSafe();padStats()}
   if(name==="sad"){drawSAD()}
-  if(name==="finder"&&!loaded.hidden)q.focus();
+  if(FINDER&&name==="finder"&&loaded&&!loaded.hidden)q.focus();
 }
 
 function boot(){
@@ -3606,22 +4132,67 @@ function boot(){
       list=D("list"), hLinks=D("hLinks"), lSub=D("linksSub"),
       lTools=D("linkTools"), links=D("links");
 
-  /* masthead buttons, beside Add task / Upload batch / Sync */
-  var mast=document.querySelector(".banner .mastbtns")||document.querySelector(".mastbtns");
-  if(mast&&!D("lbxpurge")){
-    var pb=E("button","pri","Purge Dupes");
+  /* ---- one toolbar for every action ----
+     The buttons are MOVED, never rebuilt, so the handlers the core bound to
+     them by id still fire. Grouped by what they do to your data rather than
+     by which end of the page they used to live at. */
+  if(!D("lbxpurge")){
+    var pb=E("button",null,"Purge Dupes");
     pb.type="button";pb.id="lbxpurge";
     pb.title="Scan every open task for near-duplicates";
     pb.onclick=purgeOpen;
-    mast.appendChild(pb);
     var ub=E("button",null,"Undo purge");
     ub.type="button";ub.id="lbxundo";ub.hidden=true;
     ub.title="Restore the board to exactly how it was before the last purge";
     ub.onclick=purgeUndo;
-    mast.appendChild(ub);
+    document.body.appendChild(pb);document.body.appendChild(ub);  /* parked; placed below */
   }
+  if(!D("lbxgear")){
+    var gb=E("button",null,"\u2699 Settings");
+    gb.type="button";gb.id="lbxgear";
+    gb.title="Categories, task fields and sync setup";
+    gb.onclick=setOpen;
+    document.body.appendChild(gb);
+  }
+
+  var tbar=E("div","lbxbar"), acts=E("div","lbxacts");
+  tbar.appendChild(acts);
+
+  var GROUPS=[
+    ["add",    ["bAdd","bBatch"]],
+    ["sync",   ["bSyncTop"]],
+    ["data",   ["bExp","bCsv","bImp","bPaste"]],
+    ["danger", ["lbxpurge","bClearDone"]],
+    ["util",   ["lbxundo","lbxgear","bTheme"]]
+  ];
+  GROUPS.forEach(function(gr,gi){
+    var cls=gr[0], ids=gr[1], box=E("div","lbxgrp"), any=false;
+    ids.forEach(function(id){
+      var b=D(id);
+      if(!b)return;
+      b.classList.remove("pri");
+      b.classList.add("lbxg-"+cls);
+      box.appendChild(b);                 /* moves the node, keeps its handler */
+      any=true;
+    });
+    if(!any)return;
+    if(cls==="util")acts.appendChild(E("div","lbxspacer"));
+    acts.appendChild(box);
+  });
+
+  /* bSync and bSyncTop are the same action; keep one, keep the other in the
+     DOM so anything referencing it still resolves */
+  var dupSync=D("bSync");
+  if(dupSync){ dupSync.hidden=true; dupSync.style.display="none"; acts.appendChild(dupSync); }
+  /* Sync setup now lives inside Settings; the button stays in the DOM because
+     Settings opens the core's own dialog by clicking it. */
+  var cfgBtn=D("bSyncCfg");
+  if(cfgBtn){ cfgBtn.style.display="none"; acts.appendChild(cfgBtn); }
+
   purgeUndoBtn();
   lbxAutoWire();
+  ctxWire();
+  try{ if(typeof META!=="undefined"&&META){ CATSAPPLIED=true; lbxApplyCats(); } }catch(e){}
 
   var tabs=E("div","lbxtabs");
   tabs.setAttribute("role","tablist");
@@ -3644,14 +4215,42 @@ function boot(){
     else if(e.key==="ArrowLeft")j=(i-1+TABS.length)%TABS.length;
     else if(e.key==="Home")j=0;else if(e.key==="End")j=TABS.length-1;
     if(j===null)return;e.preventDefault();show(TABS[j]);D("lbxtab-"+TABS[j]).focus()});
-  banner.insertAdjacentElement("afterend",tabs);
+  tbar.appendChild(tabs);
+  banner.insertAdjacentElement("afterend",tbar);
+
+  /* the footer keeps the version line; its button row is now empty */
+  var foots=document.querySelectorAll("footer .mastbtns");
+  foots.forEach(function(f){ if(!f.children.length)f.style.display="none" });
+  var mastEmpty=document.querySelector(".banner .mastbtns");
+  if(mastEmpty&&!mastEmpty.children.length)mastEmpty.style.display="none";
+
+  /* The finder's sticky <th> pins to the viewport top by default, which would
+     slide it under this bar. Measure the bar instead of hard-coding a height,
+     because it wraps to two rows at some widths. */
+  function lbxBarH(){
+    var h=tbar.getBoundingClientRect().height||0;
+    document.documentElement.style.setProperty("--lbxbarh",Math.round(h)+"px");
+  }
+  lbxBarH();
+  if(typeof ResizeObserver==="function"){
+    try{ new ResizeObserver(lbxBarH).observe(tbar); }catch(e){ window.addEventListener("resize",lbxBarH); }
+  }else window.addEventListener("resize",lbxBarH);
+
+  /* a shadow only once it is actually pinned, so it is flat at rest */
+  function lbxStuck(){
+    var top=tbar.getBoundingClientRect().top;
+    tbar.classList.toggle("stuck",top<=1);
+  }
+  lbxStuck();
+  window.addEventListener("scroll",lbxStuck,{passive:true});
 
   function panel(id){var p=E("div","lbxpanel");p.id="lbxpanel-"+id;
     p.setAttribute("role","tabpanel");p.setAttribute("aria-labelledby","lbxtab-"+id);
     p.tabIndex=0;p.hidden=true;
     foot?wrap.insertBefore(p,foot):wrap.appendChild(p);return p}
 
-  var pT=panel("tasks"),pL=panel("links"),pF=panel("finder"),pP=panel("pad"),pS=panel("sad");
+  var pT=panel("tasks"),pL=panel("links"),pP=panel("pad"),pS=panel("sad");
+  var pF=FINDER?panel("finder"):E("div");
   [strip,bar,list,hDone,doneSub,done].forEach(function(n){if(n)pT.appendChild(n)});
   [hLinks,lSub,lTools,links].forEach(function(n){if(n)pL.appendChild(n)});
 
@@ -3760,6 +4359,7 @@ function boot(){
   listEl=D("lbxlist");saved=D("lbxsaved");padN=D("lbxpadn");frogs=D("lbxfrogs");
   bulkBox=D("lbxbulkText");
 
+  if(FINDER){
   q.oninput=function(){apply()};
   q.onkeydown=function(e){if(e.key==="Escape"){q.value="";apply()}};
   fTool.onchange=apply;fProj.onchange=apply;
@@ -3786,6 +4386,7 @@ function boot(){
     drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove("over")})});
   drop.addEventListener("drop",function(e){
     if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0])readFile(e.dataTransfer.files[0])});
+  }   /* end if(FINDER) */
 
   var had=g(K_PAD);
   padBind();               /* no-op and retried from render() if load() has not finished */
@@ -3826,6 +4427,7 @@ function boot(){
       /* load() is async, so the first render is the earliest point META is
          reliably populated — bind the cluster list here if boot was too early */
       try{ if(padMeta!==META&&padBind())drawPadSafe(); }catch(e){}
+      try{ if(!CATSAPPLIED&&typeof META!=="undefined"&&META){ CATSAPPLIED=true; lbxApplyCats(); } }catch(e){}
       try{ if(frogs)drawFrogs(); }catch(e){}
       try{ if(sadWrap)drawSAD(); }catch(e){}
       return out;
@@ -3865,6 +4467,8 @@ function boot(){
     var _taskEl=window.taskEl;
     window.taskEl=function(t,isKid){
       var d=_taskEl.apply(this,arguments);
+      try{ if(t&&t.id)d.setAttribute("data-lbxid",t.id); }catch(e){}
+      try{ if(t)lbxApplyFields(d,t); }catch(e){}
       try{
         if(!SUPPRESS_EV&&t&&t.event){
           var ev=evById(t.event);
@@ -3876,14 +4480,16 @@ function boot(){
     };
   }
 
-  /* "/" jumps to search — but never while typing in a field */
-  document.addEventListener("keydown",function(e){
-    if(e.key!=="/")return;
-    var t=e.target.tagName;
-    if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")return;
-    e.preventDefault();show("finder");if(!loaded.hidden)q.focus()});
+  if(FINDER){
+    /* "/" jumps to search — but never while typing in a field */
+    document.addEventListener("keydown",function(e){
+      if(e.key!=="/")return;
+      var t=e.target.tagName;
+      if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")return;
+      e.preventDefault();show("finder");if(loaded&&!loaded.hidden)q.focus()});
+  }
 
-  restore();
+  if(FINDER)restore();
   var last=g(K_TAB);
   show(TABS.indexOf(last)!==-1?last:"tasks");
 
@@ -3897,7 +4503,7 @@ function boot(){
 }
 
 LBX.show=show;LBX.loadCsv=loadCsv;LBX.build=build;LBX.safeUrl=safeUrl;
-LBX.items=function(){return ITEMS};LBX.meta=function(){return (typeof META!=='undefined')?META:null};LBX.merge=lbxMerge;LBX.pull=function(){return lbxPull(true)};LBX.simScore=simScore;LBX.simScan=simScan;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
+LBX.items=function(){return ITEMS};LBX.meta=function(){return (typeof META!=='undefined')?META:null};LBX.merge=lbxMerge;LBX.pull=function(){return lbxPull(true)};LBX.settings=lbxSettings;LBX.setOpen=setOpen;LBX.ctxOpen=ctxOpen;LBX.simScore=simScore;LBX.simScan=simScan;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
 LBX.events=function(){return evAll()};
 LBX.dkey=dkey;LBX.parseDelim=parseDelim;LBX.refreshFrogs=function(){if(frogs)drawFrogs()};
 
