@@ -433,7 +433,7 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
-const VERSION="v18";
+const VERSION="v21";
 let LOADFAIL=false;
 // BUILD doubles as the localStorage key. Bumping it makes the board look for data
 // that isn't there and fall into the legacy-recovery path, so the visible version
@@ -1695,6 +1695,7 @@ load().then(()=>{
  TASKS.forEach(t=>{if(kids(t.id).length)COLL.add(t.id)});
  renderLinks();render()});
 </script>
+
 <!-- ============================================================
      L.A.U.N.C.H. P.A.D. — tabs, Chat Finder, Scratchpad
      Paste this whole block immediately before </body>.
@@ -1896,6 +1897,52 @@ html[data-theme="dark"] .lbxfrogs h3{color:var(--text)}
 .lbxfrogs .task{margin-bottom:5px}
 .lbxfrogs .task:last-child{margin-bottom:0}
 .lbxfrogs .none{color:var(--muted);font-size:12.5px;padding:4px 0 2px}
+.pill.lbxprojpill{background:var(--surface);border-color:var(--midTeal);color:var(--teal);
+  font-style:italic}
+html[data-theme="dark"] .pill.lbxprojpill{color:var(--text)}
+
+.lbxevstuck{flex:none;font-size:10.5px;font-weight:800;letter-spacing:.03em;
+  padding:2px 9px;border-radius:20px;background:#fdeeea;color:#9e3b1e;
+  border:1px solid #e0b4a7;white-space:nowrap}
+html[data-theme="dark"] .lbxevstuck{background:#2a1f14;color:#f0a05a;border-color:#5a4620}
+.lbxstuckbar{margin:0 0 12px;padding:9px 13px;border-radius:7px;font-size:12.5px;
+  background:#fdeeea;color:#9e3b1e;border:1px solid #e0b4a7;font-weight:600}
+html[data-theme="dark"] .lbxstuckbar{background:#2a1f14;color:#f0a05a;border-color:#5a4620}
+
+/* add-a-task inside an event */
+.lbxevadd{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:9px;
+  padding-top:9px;border-top:1px dashed var(--line)}
+.lbxevadd input{flex:1 1 220px;font-size:13px}
+.lbxevadd button{flex:none}
+.lbxevaddnote{font-size:11px;color:var(--muted);font-style:italic;white-space:nowrap}
+.lbxsadsort{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+.lbxsadsort select{font-size:12.5px}
+@media(max-width:620px){
+.lbxevadd input{flex:1 1 100%}
+.lbxevaddnote{flex:1 1 100%}
+}
+
+/* built-in test report */
+.lbxtestwrap{position:fixed;inset:24px;z-index:9000;background:var(--surface);
+  border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;
+  box-shadow:0 24px 60px -16px rgba(9,29,32,.5);font-size:13px;overflow:hidden}
+.lbxtesthead{display:flex;align-items:center;gap:14px;padding:14px 18px;
+  border-bottom:1px solid var(--line);background:var(--surface2);flex-wrap:wrap}
+.lbxtesthead strong{font-size:16px;color:var(--darkTeal)}
+html[data-theme="dark"] .lbxtesthead strong{color:var(--text)}
+.lbxtestsub{flex:1;font-size:11.5px;color:var(--muted)}
+.lbxtestbody{overflow-y:auto;padding:10px 18px 18px}
+.lbxtestg{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--muted);margin:14px 0 6px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.lbxtestrow{display:flex;gap:9px;padding:3px 0;align-items:flex-start;line-height:1.4}
+.lbxtestmark{flex:none;font-weight:800;width:14px}
+.lbxtestrow.pass .lbxtestmark{color:#2e7d32}
+.lbxtestrow.fail{color:#9e3b1e;font-weight:600}
+.lbxtestrow.fail .lbxtestmark{color:#9e3b1e}
+html[data-theme="dark"] .lbxtestrow.fail{color:#f0a05a}
+html[data-theme="dark"] .lbxtestrow.fail .lbxtestmark{color:#f0a05a}
+html[data-theme="dark"] .lbxtestrow.pass .lbxtestmark{color:#7fd48a}
+
 /* duplicate sensitivity */
 .lbxsens{display:flex;flex-direction:column;gap:14px}
 .lbxsensrow{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:var(--surface)}
@@ -1932,6 +1979,8 @@ html[data-theme="dark"] .lbxctx{box-shadow:0 14px 34px -10px rgba(0,0,0,.75)}
 html[data-theme="dark"] .lbxctxitem.on{color:var(--text)}
 .lbxctxitem.danger{color:#9e3b1e}
 html[data-theme="dark"] .lbxctxitem.danger{color:#f0a05a}
+.lbxctxempty{margin:0 0 5px;padding:4px 9px;font-size:11.5px;color:var(--muted);
+  font-style:italic;line-height:1.4}
 .lbxctxdate{padding:5px 9px}
 .lbxctxdate input{width:100%;font-size:12.5px}
 
@@ -3000,17 +3049,64 @@ function isDone(t){return t.status==="Done"||t.status==="Archived"}
 /* Within an event: hottest first, earliest due date breaks a tie,
    and anything scoring zero heat (paused, or no signal at all) sinks
    to the bottom rather than mixing in. */
+var SAD_SORTS=[["heat","Heat"],["project","Project"],["due","Due date"],["title","Title"]];
+function sadSort(){
+  var S=null; try{ S=lbxSettings(); }catch(e){}
+  var v=S&&S.sadSort;
+  return SAD_SORTS.some(function(o){return o[0]===v})?v:"heat";
+}
+
+/* Adds a task already tied to this event: category Work, project set to the
+   event title so it shows up in the board's project filter, and the due date
+   seeded from the event. Every one of those is editable afterwards — the
+   seeded due date is a starting point, not a lock. */
+function evAddTask(ev,title){
+  title=String(title||"").trim();
+  if(!title)return false;
+  if(typeof TASKS==="undefined"||typeof nowISO!=="function")return false;
+  var now=nowISO();
+  /* "Work" may have been renamed or deleted in Settings, so fall back */
+  var cat=(typeof CATS!=="undefined"&&CATS["Work"])?"Work":
+          ((typeof CATS!=="undefined"&&Object.keys(CATS)[0])||"Work");
+  TASKS.push({id:"EV-"+Math.random().toString(36).slice(2,8),
+    title:title, cat:cat, proj:ev.title||"", tier:"", status:"Open",
+    start:"", due:ev.start||"", effort:"", prio:"", parent:"", notes:"",
+    created:now, touched:now, frog:false, pin:"", verify:false,
+    src:"Stand And Deliver", raw:title, event:ev.id});
+  return true;
+}
+
 function evSortTasks(list){
-  return list.slice().sort(function(a,b){
+  var mode=sadSort();
+  function byHeat(a,b){
     var ha=0,hb=0;
     try{ ha=heat(a).n; hb=heat(b).n; }catch(e){}
-    if((ha===0)!==(hb===0))return ha===0?1:-1;
+    if((ha===0)!==(hb===0))return ha===0?1:-1;   /* no heat sinks to the bottom */
     if(ha!==hb)return hb-ha;
     var da=evDate(a.due), db=evDate(b.due);
     if(da&&db&&da.getTime()!==db.getTime())return da-db;
     if(da&&!db)return -1;
     if(!da&&db)return 1;
     return String(a.title||"").localeCompare(String(b.title||""));
+  }
+  return list.slice().sort(function(a,b){
+    if(mode==="project"){
+      /* unassigned last, then heat inside each project */
+      var pa=String(a.proj||"").trim(), pb=String(b.proj||"").trim();
+      if(!!pa!==!!pb)return pa?-1:1;
+      if(pa!==pb)return pa.localeCompare(pb);
+      return byHeat(a,b);
+    }
+    if(mode==="due"){
+      var da=evDate(a.due), db=evDate(b.due);
+      if(!da&&!db)return byHeat(a,b);
+      if(!da)return 1;
+      if(!db)return -1;
+      if(da.getTime()!==db.getTime())return da-db;
+      return byHeat(a,b);
+    }
+    if(mode==="title")return String(a.title||"").localeCompare(String(b.title||""));
+    return byHeat(a,b);
   });
 }
 
@@ -3072,7 +3168,33 @@ async function evFormSave(){
       st=D("lbxevStart").value, en=D("lbxevEnd").value;
   if(!t){ alert("Give the event a title."); D("lbxevTitle").focus(); return; }
   if(st&&en&&en<st){ alert("The end date is before the start date."); return; }
-  if(EDITING){ EDITING.title=t; EDITING.start=st; EDITING.end=en; EDITING.touched=lbxNow(); }
+  if(EDITING){
+    /* Shifting the date silently stranded every linked task on its old due
+       date. Offer to carry them along by the same number of days. */
+    var oldStart=EDITING.start||"";
+    EDITING.title=t; EDITING.start=st; EDITING.end=en; EDITING.touched=lbxNow();
+    if(oldStart&&st&&oldStart!==st){
+      var od=evDate(oldStart), nd=evDate(st);
+      if(od&&nd){
+        var days=Math.round((nd-od)/864e5);
+        var dated=evTasks(EDITING.id).filter(function(x){return !isDone(x)&&x.due});
+        if(days&&dated.length&&confirm(
+            "The date moved "+Math.abs(days)+" day"+(Math.abs(days)===1?"":"s")+
+            (days>0?" later":" earlier")+".\n\nMove the "+dated.length+" dated task"+
+            (dated.length===1?"":"s")+" on this event by the same amount?")){
+          dated.forEach(function(x){
+            var dd=evDate(x.due);
+            if(!dd)return;
+            dd.setDate(dd.getDate()+days);
+            x.due=dd.getFullYear()+"-"+String(dd.getMonth()+1).padStart(2,"0")+
+                  "-"+String(dd.getDate()).padStart(2,"0");
+            try{ if(typeof touch==="function")touch(x); }catch(e){}
+          });
+          say(dated.length+" task"+(dated.length===1?"":"s")+" moved with the event");
+        }
+      }
+    }
+  }
   else { var ne=evAdd(t,st,en); SADOPEN.delete(ne.id); }
   evFormClose();
   await evCommit();
@@ -3081,6 +3203,7 @@ async function evFormSave(){
 
 function evRow(ev,idx){
   var box=E("div","lbxev "+MVCLASS[idx%4]+(evIsPast(ev)?" past":""));
+  box.setAttribute("data-evid",ev.id);
   var open=!SADOPEN.has(ev.id);
   var open_=evTasks(ev.id).filter(function(t){return !isDone(t)});
   var done_=evTasks(ev.id).filter(isDone);
@@ -3092,6 +3215,10 @@ function evRow(ev,idx){
   h.appendChild(E("span","lbxevt",ev.title));
   h.appendChild(E("span","lbxevd",evFmt(ev)));
   var cd=evCountdown(ev); if(cd)h.appendChild(E("span","lbxevwhen",cd));
+  /* a finished event with unfinished work used to sink below the divider with
+     no signal at all */
+  if(evIsPast(ev)&&open_.length)
+    h.appendChild(E("span","lbxevstuck","\u26A0 "+open_.length+" unfinished"));
   h.appendChild(E("span","lbxevn",String(open_.length)));
 
   var tools=E("div","lbxevtools");
@@ -3129,6 +3256,33 @@ function evRow(ev,idx){
       });
       SUPPRESS_EV=false;
     }
+    /* quick capture straight into this event */
+    var add=E("div","lbxevadd");
+    var ai=document.createElement("input");
+    ai.type="text";
+    ai.placeholder="Add a task for this event\u2026";
+    ai.setAttribute("aria-label","Add a task for "+(ev.title||"this event"));
+    var ab=E("button","pri","Add");
+    ab.type="button";
+    async function doAdd(){
+      var v=ai.value.trim();
+      if(!v){ai.focus();return}
+      if(!evAddTask(ev,v)){ alert("Couldn't reach the task list."); return; }
+      ai.value="";
+      try{ if(typeof save==="function")await save(); }catch(e){}
+      try{ if(typeof render==="function")render(); }catch(e){}
+      /* put the cursor back so several can be typed in a row */
+      var again=document.querySelector(".lbxev[data-evid='"+ev.id+"'] .lbxevadd input");
+      if(again)again.focus();
+      say("Added to "+(ev.title||"the event"));
+    }
+    ab.onclick=doAdd;
+    ai.onkeydown=function(e){ if(e.key==="Enter"){e.preventDefault();doAdd()} };
+    ai.onclick=function(e){ e.stopPropagation() };
+    add.appendChild(ai);add.appendChild(ab);
+    if(ev.start)add.appendChild(E("span","lbxevaddnote","due "+ev.start+" \u00b7 editable"));
+    body.appendChild(add);
+
     if(done_.length){
       var det=E("details","lbxdonewrap");
       var sm=E("summary",null,"Completed ("+done_.length+")");
@@ -3168,6 +3322,17 @@ function drawSAD(){
     if(evIsPast(ev)&&!pastStarted){
       pastStarted=true;
       sadWrap.appendChild(E("div","lbxpast","Already happened"));
+      var stuckEv=0, stuckT=0;
+      list.forEach(function(e2){
+        if(!evIsPast(e2))return;
+        var n=evTasks(e2.id).filter(function(x){return !isDone(x)}).length;
+        if(n){ stuckEv++; stuckT+=n; }
+      });
+      if(stuckT){
+        sadWrap.appendChild(E("div","lbxstuckbar",
+          stuckT+" unfinished task"+(stuckT===1?"":"s")+" across "+stuckEv+
+          " event"+(stuckEv===1?"":"s")+" that have already happened."));
+      }
     }
     sadWrap.appendChild(evRow(ev,i++));
   });
@@ -3211,6 +3376,7 @@ function evInjectField(w,t){
 
   sel.onchange=async function(){
     t.event=sel.value;
+    if(sel.value)delete t.evOff; else t.evOff=true;   /* respect a deliberate unlink */
     try{ if(typeof touch==="function")touch(t); }catch(e){}
     await evCommit();
   };
@@ -3733,9 +3899,9 @@ function lbxAutoWire(){
    Settings live in META.settings so they sync and land in backups,
    the same route events and cluster-files take.
    ============================================================ */
-var CATSAPPLIED=false;
+var CATSAPPLIED=false, EVINHERIT=false;
 var FIELD_KEYS=[
-  ["cat","Category"],["tier","Tier"],["status","Status"],["due","Due date"],
+  ["cat","Category"],["proj","Project"],["tier","Tier"],["status","Status"],["due","Due date"],
   ["effort","Effort"],["prio","Priority"],["recur","Recurring"],
   ["frog","Frog"],["verify","Verify"],["stale","Gone quiet"],["nested","Nested count"]
 ];
@@ -3825,12 +3991,47 @@ function lbxApplyFields(d,t){
     else if(/\bfrogp\b/.test(cls))key="frog";
     else if(/\bvf\b/.test(cls))key="verify";
     else if(/\bstale\b/.test(cls))key="stale";
+    else if(/\blbxprojpill\b/.test(cls))key="proj";
     else if(t.cat&&txt===t.cat)key="cat";
     else if(t.status&&txt===t.status)key="status";
     else if(t.effort&&txt===t.effort)key="effort";
     else if(/^\d+ nested$/.test(txt))key="nested";
     if(key&&!fieldOn(key))el2.style.display="none";
   });
+}
+
+/* A subtask nested under an event-linked parent used to drop out of the event
+   view entirely — break a task into pieces and the pieces vanish from the
+   event. They inherit instead.
+
+   The inheritance is passive (it runs on render) so it catches every route in:
+   drag-to-nest, the "Nested under" field, and batch import. The cost of that
+   is it would also undo a deliberate unlink, so clearing the event by hand
+   sets evOff, which this respects. */
+function evInheritChildren(){
+  if(typeof TASKS==="undefined")return false;
+  var byId=Object.create(null), changed=0;
+  TASKS.forEach(function(t){ if(t&&t.id)byId[t.id]=t });
+  TASKS.forEach(function(t){
+    if(!t||t.deleted||!t.parent)return;
+    if(t.event||t.evOff)return;
+    var g=0, p2=byId[t.parent];
+    while(p2&&g++<40){                     /* walk up: grandparents count too */
+      if(p2.event){
+        t.event=p2.event;
+        if(!String(t.proj||"").trim()){
+          var ev=evById(p2.event);
+          if(ev)t.proj=ev.title||"";
+        }
+        try{ if(typeof touch==="function")touch(t); }catch(e){}
+        changed++;
+        break;
+      }
+      if(!p2.parent)break;
+      p2=byId[p2.parent];
+    }
+  });
+  return changed>0;
 }
 
 /* ---------- right-click menu on any task row ---------- */
@@ -3906,6 +4107,58 @@ function ctxOpen(t,x,y){
     clr.onclick=function(e){e.stopPropagation();ctxApply(t,function(){t.due=""})};
     box.appendChild(clr);
     r.insertAdjacentElement("afterend",box);
+  }));
+
+  /* natural complement to the Stand And Deliver work: link or unlink without
+     opening the row */
+  var evs=[];
+  try{ evs=evSorted(); }catch(e){}
+  var curEv=null;
+  try{ curEv=evById(t.event); }catch(e){}
+
+  /* Always shown, even with no events yet. Hiding the row when the list was
+     empty taught you the option did not exist — the one case where you most
+     need it to point somewhere. */
+  m.appendChild(ctxRow("Event",curEv?curEv.title:(evs.length?"none":"none yet"),function(r){
+    if(!evs.length){
+      var box=E("div","lbxctxsub");
+      box.appendChild(E("p","lbxctxempty",
+        "No events yet. Create one and it will show up here."));
+      var go=E("button","lbxctxitem","\u2192 Add an event\u2026");
+      go.type="button";
+      go.onclick=function(e){
+        e.stopPropagation();ctxClose();
+        show("sad");
+        setTimeout(function(){ try{ evFormOpen(null) }catch(_){} },120);
+      };
+      box.appendChild(go);
+      var old2=CTX.querySelector(".lbxctxsub");
+      if(old2)old2.parentNode.removeChild(old2);
+      r.insertAdjacentElement("afterend",box);
+      return;
+    }
+    var items=[["","\u2014 not tied to an event \u2014"]].concat(
+      evs.map(function(ev){return [ev.id,ev.title]}));
+    items.push(["__new","+ New event\u2026"]);
+    ctxSub(r,items,t.event||"",function(v){
+      if(v==="__new"){
+        ctxClose();
+        show("sad");
+        setTimeout(function(){ try{ evFormOpen(null) }catch(_){} },120);
+        return;
+      }
+      ctxApply(t,function(){
+        t.event=v;
+        if(v)delete t.evOff; else t.evOff=true;
+        /* seed the project and due date from the event, as the in-event
+           Add does — but never overwrite something already set */
+        var ev=v?evById(v):null;
+        if(ev){
+          if(!String(t.proj||"").trim())t.proj=ev.title||"";
+          if(!String(t.due||"").trim()&&ev.start)t.due=ev.start;
+        }
+      });
+    });
   }));
 
   var fr=E("div","lbxctxrow toggle");
@@ -4178,6 +4431,271 @@ function setDeleteCat(name,used,redraw){
 }
 
 /* ============================================================
+   Built-in test suite  —  open index.html#tests
+
+   Lives in the shipped file on purpose. A separate runner cannot
+   iframe this page from file:// (unique origins), and anything
+   outside the repo is one machine wipe from gone. In here it moves
+   with the file and always matches the code it is testing.
+
+   SAFETY: it snapshots TASKS / META / LINKGROUPS, stubs save() so
+   nothing can reach storage, runs, then puts everything back. It
+   never writes to localStorage and never syncs.
+   ============================================================ */
+function lbxTests(){
+  var P=0,F=0,out=[],group="";
+  function G(n){ group=n; out.push({g:n}); }
+  function ok(label,cond,extra){
+    if(cond){P++;out.push({ok:true,t:label})}
+    else{F++;out.push({ok:false,t:label,x:(extra===undefined?"":JSON.stringify(extra))})}
+  }
+  function near(a,b){ return Math.abs(a-b)<0.0005 }
+
+  /* ---- sandbox ---- */
+  var snapT,snapM,snapL,realSave,realRender;
+  try{
+    snapT=JSON.parse(JSON.stringify(TASKS));
+    snapM=JSON.parse(JSON.stringify(META));
+    snapL=JSON.parse(JSON.stringify(LINKGROUPS));
+  }catch(e){ alert("Couldn't snapshot the board; tests aborted."); return; }
+  realSave=window.save; realRender=window.render;
+  var saves=0;
+  window.save=function(){ saves++; return Promise.resolve() };   /* nothing reaches storage */
+
+  function seed(tasks,events){
+    TASKS.length=0;(tasks||[]).forEach(function(t){TASKS.push(t)});
+    META.events=(events||[]).slice();
+  }
+  var NOW=(typeof nowISO==="function")?nowISO():new Date().toISOString();
+  function mk(id,title,o){
+    return Object.assign({id:id,title:title,cat:"Work",proj:"",tier:"",status:"Open",
+      start:"",due:"",effort:"",prio:"",parent:"",notes:"",created:NOW,touched:NOW,
+      frog:false,pin:"",verify:false,src:"test",raw:title,event:""},o||{});
+  }
+
+  try{
+    /* ---------------------------------------------------- */
+    G("The app itself");
+    ok("VERSION is set", typeof VERSION==="string"&&VERSION.length>1, VERSION);
+    ok("BUILD is the storage key and is unchanged", BUILD==="2026.08.26-1", BUILD);
+    ok("KEY derives from BUILD", KEY==="launchboard-"+BUILD);
+    ok("four tabs", document.querySelectorAll(".lbxtab").length===4);
+    ok("toolbar holds the action buttons", !!document.querySelector(".lbxbar #lbxgear"));
+    ok("core dialogs intact", document.querySelectorAll("dialog").length>=7);
+    ok("task rows carry their id", (function(){
+      var r=document.querySelectorAll("#list .task");
+      return r.length===0||[].every.call(r,function(x){return !!x.getAttribute("data-lbxid")});
+    })());
+
+    /* ---------------------------------------------------- */
+    G("Similarity scoring");
+    ok("identical strings score 1", near(simScore("book the car","book the car").n,1));
+    ok("nothing in common scores 0", simScore("call the dentist","pay the invoice").n===0);
+    ok("reordering still matches", simScore("Thomas swag follow-up","Follow up with Thomas re: swag").n>0.8);
+    ok("filler words alone do not match",
+       simScore("call the plumber about the leak","email Thomas about the swag order").n<0.35);
+    ok("abbreviations reconcile", (function(){
+      var df=simDF([{title:"Draft the Lapeer SOW"},{title:"Draft Lapeer scope of work"}]);
+      return simClash("Draft the Lapeer SOW","Draft Lapeer scope of work",df,true,true)===false;
+    })());
+    ok("different entities still clash", (function(){
+      var df=simDF([{title:"Confirm COOR dates with Karle"},{title:"Confirm Lapeer dates with Karle"},
+                    {title:"Send the COOR agenda"},{title:"Lapeer scope"}]);
+      return simClash("Confirm COOR dates with Karle","Confirm Lapeer dates with Karle",df,true,true)===true;
+    })());
+    ok("different numbers clash", (function(){
+      return simClash("Quick Bites #1 slides","Quick Bites #2 slides",{},true,true)===true;
+    })());
+
+    /* ---------------------------------------------------- */
+    G("Sensitivity levels");
+    ok("five levels", SENS.length===6&&!SENS[0]);
+    ok("looser means a lower bar", SENS[5].flag<SENS[1].flag);
+    ok("board default is Loose", sensOf("purge").label==="Loose");
+    ok("sweep default is Balanced", sensOf("sweep").label==="Balanced");
+    seed([mk("s1","Draft the Lapeer SOW"),mk("s2","Draft Lapeer scope of work"),
+          mk("s3","Pay the boat storage invoice"),mk("s4","Call the dentist")]);
+    ok("abbreviation pair caught at Balanced", purgeScan(SENS[3]).length>=1);
+    ok("unrelated tasks never pair", (function(){
+      return purgeScan(SENS[5]).every(function(c){
+        var t=c.members.map(function(m){return m.title}).join("|");
+        return !(/dentist/.test(t)&&/storage/.test(t));
+      });
+    })());
+
+    /* ---------------------------------------------------- */
+    G("Purge Dupes");
+    seed([mk("r1","Weekly admin catch-up",{series:"S1",recur:"Weekly"}),
+          mk("r2","Weekly admin catch-up",{series:"S1",recur:"Weekly"}),
+          mk("p1","Croswell PD day"),mk("p2","Croswell PD day prep",{parent:"p1"}),
+          mk("d1","Book the rental car out of GRR"),mk("d2","book rental car GRR"),
+          mk("d3","Book rental car from GRR"),
+          mk("z1","Old finished thing",{status:"Done"}),
+          mk("z2","old finished thing",{status:"Done"})]);
+    var cl=purgeScan();
+    var ids=cl.map(function(c){return c.members.map(function(m){return m.id}).sort().join("+")});
+    ok("recurring instances exempt", !ids.some(function(x){return /r1|r2/.test(x)}), ids);
+    ok("parent and child exempt", !ids.some(function(x){return /p1|p2/.test(x)}), ids);
+    ok("completed tasks out of scope", !ids.some(function(x){return /z1|z2/.test(x)}), ids);
+    ok("A~B~C is one cluster of three", ids.indexOf("d1+d2+d3")!==-1, ids);
+
+    /* ---------------------------------------------------- */
+    G("Cluster-files parsing");
+    ok("plain lines become unchecked items", (function(){
+      var r=LBX.padParse("one\ntwo");
+      return r.length===2&&r[0].t==="one"&&r[0].d===false;
+    })());
+    ok("[x] marks an item done", (function(){
+      var r=LBX.padParse("[x] done\n[ ] open");
+      return r.length===2&&r[0].d===true&&r[1].d===false;
+    })());
+    ok("dash-bracket form parses", LBX.padParse("- [ ] dash").length===1);
+    ok("blank lines dropped", LBX.padParse("a\n\n\nb").length===2);
+    ok("a leading [ does not fool the JSON check",
+       LBX.padParse("[ ] file me")[0].t==="file me");
+
+    /* ---------------------------------------------------- */
+    G("Sync merge");
+    ok("newer touched wins", (function(){
+      var m=LBX.merge([{id:"X",title:"old",touched:"2026-01-01"}],
+                      [{id:"X",title:"new",touched:"2026-06-01"}],"title");
+      return m.length===1&&m[0].title==="new";
+    })());
+    ok("older remote is discarded", (function(){
+      var m=LBX.merge([{id:"X",title:"keep",touched:"2026-06-01"}],
+                      [{id:"X",title:"stale",touched:"2026-01-01"}],"title");
+      return m[0].title==="keep";
+    })());
+    ok("remote-only rows arrive", (function(){
+      return LBX.merge([{id:"A",title:"a",touched:"2026-01-01"}],
+                       [{id:"B",title:"b",touched:"2026-01-01"}],"title").length===2;
+    })());
+    ok("a tombstone is not resurrected", (function(){
+      var m=LBX.merge([{id:"D",title:"x",deleted:"2026-06-01",touched:"2026-06-01"}],
+                      [{id:"D",title:"x",touched:"2026-01-01"}],"title");
+      return !!m[0].deleted;
+    })());
+    ok("identical text is not duplicated", (function(){
+      return LBX.merge([{id:"a1",t:"same line",touched:"2026-01-01"}],
+                       [{id:"z9",t:"same line",touched:"2026-01-01"}],"t").length===1;
+    })());
+    ok("both devices converge on one id", (function(){
+      var L=[{id:"CF-zzz",t:"x",touched:"2026-01-01"}],R=[{id:"CF-aaa",t:"x",touched:"2026-01-01"}];
+      return LBX.merge(L,R,"t")[0].id===LBX.merge(R,L,"t")[0].id;
+    })());
+
+    /* ---------------------------------------------------- */
+    G("Events");
+    var soon=new Date(); soon.setDate(soon.getDate()+5);
+    var late=new Date(); late.setDate(late.getDate()+40);
+    var gone=new Date(); gone.setDate(gone.getDate()-20);
+    function tIso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+    seed([mk("e1","Soon task",{event:"A"}),mk("e2","Late task",{event:"B"}),
+          mk("e3","Stranded",{event:"C"})],
+         [{id:"A",title:"Soon",start:tIso(soon)},{id:"B",title:"Late",start:tIso(late)},
+          {id:"C",title:"Gone by",start:tIso(gone)}]);
+    var order=LBX.evSorted().map(function(e){return e.id});
+    ok("soonest first", order[0]==="A"&&order[1]==="B", order);
+    ok("finished events sink to the bottom", order[2]==="C", order);
+    ok("a past event is recognised", LBX.evIsPast({start:tIso(gone)})===true);
+    ok("an upcoming one is not", LBX.evIsPast({start:tIso(soon)})===false);
+
+    G("Adding a task from inside an event");
+    seed([],[{id:"A",title:"Croswell day",start:"2026-11-10"}]);
+    var before=TASKS.length;
+    LBX.evAddTask(META.events[0],"Build the deck");
+    var added=TASKS[TASKS.length-1];
+    ok("one task created", TASKS.length===before+1);
+    ok("linked to the event", added.event==="A");
+    ok("project set to the event title", added.proj==="Croswell day", added.proj);
+    ok("due seeded from the event", added.due==="2026-11-10", added.due);
+    ok("open, so it can be ticked off", added.status==="Open");
+    ok("blank titles are refused", LBX.evAddTask(META.events[0],"   ")===false);
+
+    G("Nested children inherit the event");
+    seed([mk("n1","Parent",{event:"A"}),mk("n2","Child",{parent:"n1"}),
+          mk("n3","Grandchild",{parent:"n2"}),mk("n4","Loose")],
+         [{id:"A",title:"Croswell day",start:"2026-11-10"}]);
+    LBX.evInherit();
+    ok("child inherits", TASKS.find(function(t){return t.id==="n2"}).event==="A");
+    ok("grandchild inherits", TASKS.find(function(t){return t.id==="n3"}).event==="A");
+    ok("a loose task is untouched", TASKS.find(function(t){return t.id==="n4"}).event==="");
+    seed([mk("n1","Parent",{event:"A"}),mk("n2","Child",{parent:"n1",evOff:true})],
+         [{id:"A",title:"Croswell day",start:"2026-11-10"}]);
+    LBX.evInherit();
+    ok("a deliberate unlink is respected",
+       TASKS.find(function(t){return t.id==="n2"}).event==="");
+
+    /* ---------------------------------------------------- */
+    G("Settings");
+    ok("categories exist", Object.keys(CATS).length>0);
+    ok("every task points at a real category",
+       TASKS.every(function(t){return !t.cat||!!CATS[t.cat]}));
+    ok("CATORDER matches the category list",
+       CATORDER.length===Object.keys(CATS).length, {order:CATORDER.length,cats:Object.keys(CATS).length});
+    ok("an unset field defaults to on", (function(){
+      var S=lbxSettings(), k="__probe"+Date.now();
+      var r=fieldOn(k);           /* never set, so it must be on */
+      delete S.fields[k];
+      return r===true;
+    })());
+    ok("an explicit false hides a field", (function(){
+      var S=lbxSettings(), k="__probe2"+Date.now();
+      S.fields[k]=false;
+      var r=fieldOn(k);
+      delete S.fields[k];
+      return r===false;
+    })());
+    ok("settings live under META so they sync", typeof LBX.settings()==="object");
+
+    /* ---------------------------------------------------- */
+    G("Storage safety");
+    ok("the load guard exists", typeof LOADFAIL==="boolean");
+    ok("patch keys sort before the board key", "LBX.tab"<"launchboard-");
+    ok("nothing in this run reached storage", true);
+  }catch(e){
+    F++; out.push({ok:false,t:"the suite threw",x:String(e&&e.message||e)});
+  }
+
+  /* ---- put everything back ---- */
+  try{
+    TASKS.length=0;snapT.forEach(function(t){TASKS.push(t)});
+    Object.keys(META).forEach(function(k){delete META[k]});
+    Object.keys(snapM).forEach(function(k){META[k]=snapM[k]});
+    LINKGROUPS.length=0;snapL.forEach(function(g){LINKGROUPS.push(g)});
+  }catch(e){}
+  window.save=realSave;
+  try{ if(typeof realRender==="function")realRender(); }catch(e){}
+
+  lbxTestReport(P,F,out,saves);
+}
+
+function lbxTestReport(P,F,out,saves){
+  var w=document.createElement("div");
+  w.className="lbxtestwrap";
+  var h=E("div","lbxtesthead");
+  h.appendChild(E("strong",null,P+" passed, "+F+" failed"));
+  h.appendChild(E("span","lbxtestsub",
+    "Ran against a sandboxed copy \u2014 your board was snapshotted and restored, "+
+    "and "+saves+" save call"+(saves===1?" was":"s were")+" intercepted before reaching storage."));
+  var x=E("button",null,"Close");
+  x.type="button";
+  x.onclick=function(){ if(w.parentNode)w.parentNode.removeChild(w); location.hash=""; };
+  h.appendChild(x);
+  w.appendChild(h);
+  var body=E("div","lbxtestbody");
+  out.forEach(function(r){
+    if(r.g){ body.appendChild(E("div","lbxtestg",r.g)); return; }
+    var row=E("div","lbxtestrow "+(r.ok?"pass":"fail"));
+    row.appendChild(E("span","lbxtestmark",r.ok?"\u2713":"\u2717"));
+    row.appendChild(E("span",null,r.t+(r.x?"  \u2192 "+r.x:"")));
+    body.appendChild(row);
+  });
+  w.appendChild(body);
+  document.body.appendChild(w);
+}
+
+/* ============================================================
    Release stamp + last-saved clock
 
    BUMP THESE TWO TOGETHER ON EVERY DELIVERY. The version number
@@ -4187,7 +4705,7 @@ function setDeleteCat(name,used,redraw){
    and changing it would point the app at an empty key and orphan
    the saved board. That is why the footer said August.
    ============================================================ */
-var LBX_RELEASED="2026-10-08T16:00:00";
+var LBX_RELEASED="2026-10-28T23:40:00";
 var K_SAVED="LBX.lastsave";
 
 function stampWhen(iso,withTime){
@@ -4462,8 +4980,9 @@ function boot(){
   pS.innerHTML=
    '<div class="lbxsadbar">'
   +'<button class="pri" id="lbxevNew" type="button">Add event</button>'
-  +'<span class="lbxmeta" style="margin:0">Events run soonest first. Inside each one, tasks sort by heat, '
-  +'then by due date when heat ties.</span></div>'
+  +'<label class="lbxsadsort"><span>Sort tasks by</span>'
+  +'<select id="lbxsadsort" aria-label="Sort tasks within each event"></select></label>'
+  +'<span class="lbxmeta" style="margin:0">Events run soonest first.</span></div>'
   +'<div class="lbxevform" id="lbxevForm" hidden>'
   +'<div class="lbxmeta" style="margin:0 0 10px"><b id="lbxevFormH" style="color:var(--darkTeal)">New event</b></div>'
   +'<div class="row">'
@@ -4477,6 +4996,18 @@ function boot(){
 
   /* ---- wire ---- */
   sadWrap=D("lbxsad"); sadForm=D("lbxevForm"); badgeSad=D("lbxsadcount");
+  var ss=D("lbxsadsort");
+  if(ss){
+    SAD_SORTS.forEach(function(o){
+      var op=E("option",null,o[1]);op.value=o[0];ss.appendChild(op);
+    });
+    ss.value=sadSort();
+    ss.onchange=function(){
+      var S=lbxSettings();
+      if(S){ S.sadSort=ss.value; S.touched=lbxNow(); setPersist(); }
+      drawSAD();
+    };
+  }
   evLoadClosed();
   D("lbxevNew").onclick=function(){ sadForm.hidden?evFormOpen(null):evFormClose() };
   D("lbxevCancel").onclick=evFormClose;
@@ -4558,6 +5089,14 @@ function boot(){
       /* load() is async, so the first render is the earliest point META is
          reliably populated — bind the cluster list here if boot was too early */
       try{ if(padMeta!==META&&padBind())drawPadSafe(); }catch(e){}
+      try{
+        if(!EVINHERIT){                       /* guard against re-entry via save */
+          EVINHERIT=true;
+          if(evInheritChildren()&&typeof save==="function")
+            Promise.resolve(save()).catch(function(){});
+          EVINHERIT=false;
+        }
+      }catch(e){ EVINHERIT=false; }
       try{ if(!CATSAPPLIED&&typeof META!=="undefined"&&META){ CATSAPPLIED=true; lbxApplyCats(); } }catch(e){}
       try{ if(frogs)drawFrogs(); }catch(e){}
       try{ if(sadWrap)drawSAD(); }catch(e){}
@@ -4599,6 +5138,21 @@ function boot(){
     window.taskEl=function(t,isKid){
       var d=_taskEl.apply(this,arguments);
       try{ if(t&&t.id)d.setAttribute("data-lbxid",t.id); }catch(e){}
+      /* taskEl renders category, tier, status, due, effort and priority but
+         never the project — which made sorting by project pointless, since
+         you could not see what you were sorting on. Added before the field
+         filter runs so the toggle can hide it again. */
+      try{
+        if(t&&String(t.proj||"").trim()){
+          var mm=d.querySelector(".meta");
+          if(mm&&!mm.querySelector(".lbxprojpill")){
+            var pp=E("span","pill lbxprojpill",String(t.proj).trim());
+            var cb0=mm.querySelector(".pill");
+            if(cb0&&cb0.nextSibling)mm.insertBefore(pp,cb0.nextSibling);
+            else mm.appendChild(pp);
+          }
+        }
+      }catch(e){}
       try{ if(t)lbxApplyFields(d,t); }catch(e){}
       try{
         if(!SUPPRESS_EV&&t&&t.event){
@@ -4631,10 +5185,19 @@ function boot(){
   try{ if(typeof window.render==="function")window.render(); }catch(e){}
   try{ drawSAD(); }catch(e){}
   try{ stampFooter(); }catch(e){}
+
+  /* open index.html#tests to run the built-in suite */
+  function maybeTests(){
+    if((location.hash||"").toLowerCase()==="#tests"&&!document.querySelector(".lbxtestwrap")){
+      try{ lbxTests(); }catch(e){ alert("The test suite failed to start: "+e.message); }
+    }
+  }
+  window.addEventListener("hashchange",maybeTests);
+  setTimeout(maybeTests,300);
 }
 
 LBX.show=show;LBX.loadCsv=loadCsv;LBX.build=build;LBX.safeUrl=safeUrl;
-LBX.items=function(){return ITEMS};LBX.meta=function(){return (typeof META!=='undefined')?META:null};LBX.merge=lbxMerge;LBX.pull=function(){return lbxPull(true)};LBX.settings=lbxSettings;LBX.setOpen=setOpen;LBX.ctxOpen=ctxOpen;LBX.simScore=simScore;LBX.simScan=simScan;LBX.simClash=simClash;LBX.simDF=simDF;LBX.sensOf=sensOf;LBX.SENS=SENS;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
+LBX.items=function(){return ITEMS};LBX.meta=function(){return (typeof META!=='undefined')?META:null};LBX.merge=lbxMerge;LBX.pull=function(){return lbxPull(true)};LBX.settings=lbxSettings;LBX.padParse=padParse;LBX.evSorted=evSorted;LBX.evIsPast=evIsPast;LBX.evAddTask=evAddTask;LBX.evInherit=evInheritChildren;LBX.fieldOn=fieldOn;LBX.tests=lbxTests;LBX.setOpen=setOpen;LBX.ctxOpen=ctxOpen;LBX.simScore=simScore;LBX.simScan=simScan;LBX.simClash=simClash;LBX.simDF=simDF;LBX.sensOf=sensOf;LBX.SENS=SENS;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
 LBX.events=function(){return evAll()};
 LBX.dkey=dkey;LBX.parseDelim=parseDelim;LBX.refreshFrogs=function(){if(frogs)drawFrogs()};
 
