@@ -433,7 +433,7 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
-const VERSION="v21";
+const VERSION="v24";
 let LOADFAIL=false;
 // BUILD doubles as the localStorage key. Bumping it makes the board look for data
 // that isn't there and fall into the legacy-recovery path, so the visible version
@@ -1942,6 +1942,47 @@ html[data-theme="dark"] .lbxtesthead strong{color:var(--text)}
 html[data-theme="dark"] .lbxtestrow.fail{color:#f0a05a}
 html[data-theme="dark"] .lbxtestrow.fail .lbxtestmark{color:#f0a05a}
 html[data-theme="dark"] .lbxtestrow.pass .lbxtestmark{color:#7fd48a}
+
+/* sync diagnostics */
+.lbxdiag{display:flex;flex-direction:column;gap:4px;margin-top:10px}
+.lbxdiagrow{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;
+  padding:6px 9px;border-radius:6px;border:1px solid var(--line);background:var(--surface)}
+.lbxdiagrow.run{color:var(--muted);font-style:italic}
+.lbxdiagmark{flex:none;font-weight:800;width:13px}
+.lbxdiagrow.ok .lbxdiagmark{color:#2e7d32}
+.lbxdiagrow.bad{border-color:#c0705c;background:#fdeeea;color:#7d2d12}
+.lbxdiagrow.bad .lbxdiagmark{color:#9e3b1e}
+.lbxdiagrow.warn{border-color:#d9a441;background:#fff8e8;color:#6b4c12}
+html[data-theme="dark"] .lbxdiagrow.bad{background:#2a1f14;color:#f0a05a;border-color:#7a4432}
+html[data-theme="dark"] .lbxdiagrow.warn{background:#2a2414;color:#e3c37a;border-color:#6b5a2a}
+.lbxdiagtext{flex:1;min-width:0;line-height:1.4}
+.lbxdiagdet{color:var(--muted);font-weight:400}
+html[data-theme="dark"] .lbxdiagrow.bad .lbxdiagdet,
+html[data-theme="dark"] .lbxdiagrow.warn .lbxdiagdet{color:inherit;opacity:.85}
+.lbxdiagrow.bad .lbxdiagdet,.lbxdiagrow.warn .lbxdiagdet{color:inherit;opacity:.85}
+
+/* storage readout */
+.lbxsetstore{display:flex;flex-direction:column;gap:5px}
+.lbxstbar{height:9px;border-radius:99px;background:var(--surface2);
+  border:1px solid var(--line);overflow:hidden}
+.lbxstfill{height:100%;background:var(--midTeal);transition:width .2s}
+.lbxstfill.hot{background:#c0705c}
+.lbxstsum{font-size:12px;color:var(--muted);margin-bottom:6px}
+.lbxstrow{display:flex;align-items:center;gap:9px;font-size:12px;
+  padding:5px 7px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.lbxstrow code{font-size:11px;color:var(--teal);flex:none}
+html[data-theme="dark"] .lbxstrow code{color:var(--text)}
+.lbxstwhat{flex:1;color:var(--muted);font-size:11.5px;min-width:0}
+.lbxstsize{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+
+/* a save that failed must not scroll past */
+.lbxsavewarn{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:9500;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;max-width:min(680px,94vw);
+  background:#fdeeea;color:#7d2d12;border:1px solid #c0705c;border-radius:10px;
+  padding:12px 16px;font-size:13px;box-shadow:0 14px 30px -10px rgba(9,29,32,.45)}
+.lbxsavewarn strong{font-weight:800}
+.lbxsavewarn button{font-size:12px;padding:6px 11px}
+html[data-theme="dark"] .lbxsavewarn{background:#2a1f14;color:#f0a05a;border-color:#7a4432}
 
 /* duplicate sensitivity */
 .lbxsens{display:flex;flex-direction:column;gap:14px}
@@ -3535,8 +3576,15 @@ function purgeMerge(win,losers){
 
 function purgeSnapshot(){
   try{
-    return s(K_PURGE,JSON.stringify({at:new Date().toISOString(),
-      tasks:JSON.parse(JSON.stringify(TASKS))}));
+    var payload=JSON.stringify({at:new Date().toISOString(),
+      tasks:JSON.parse(JSON.stringify(TASKS))});
+    /* This is a full second copy of the board. On a large one it can push
+       localStorage over the edge, and a failed save is silent after the toast
+       clears — so refuse rather than risk the board to keep an undo. */
+    var st=lbxStorage();
+    var headroom=LBX_QUOTA-st.total+lbxKeyBytes(K_PURGE);
+    if(payload.length*2>headroom*0.8)return false;
+    return s(K_PURGE,payload);
   }catch(e){ return false; }
 }
 function purgeHasUndo(){ return !!g(K_PURGE); }
@@ -4201,6 +4249,109 @@ function ctxWire(){
   window.addEventListener("scroll",ctxClose,{passive:true});
 }
 
+/* ---------- sync diagnostics ----------
+   doSync reports only the first error it hits, which makes "it stopped
+   working" hard to place. This walks the chain in order and says which link
+   broke. Read-only: it performs no writes and no commits. */
+async function syncDiag(into){
+  function row(state,label,detail){
+    var r=E("div","lbxdiagrow "+state);
+    r.appendChild(E("span","lbxdiagmark",
+      state==="ok"?"\u2713":state==="bad"?"\u2717":state==="warn"?"!":"\u00b7"));
+    var b=E("span","lbxdiagtext");
+    b.appendChild(E("strong",null,label));
+    if(detail)b.appendChild(E("span","lbxdiagdet"," "+detail));
+    r.appendChild(b);
+    into.appendChild(r);
+  }
+  into.textContent="";
+  into.appendChild(E("div","lbxdiagrow run","Checking\u2026"));
+
+  var cfg=false;
+  try{ cfg=(typeof cfgd==="function")&&cfgd(); }catch(e){}
+  into.textContent="";
+
+  if(!cfg){
+    row("bad","Sync is not configured on this device",
+      "Repo, token or passphrase is blank. Settings \u203A Sync \u203A Sync setup.");
+    try{
+      row(SYNC.repo?"ok":"bad","Repository", SYNC.repo||"(blank)");
+      row(SYNC.token?"ok":"bad","Token", SYNC.token?"present":"(blank)");
+      row(SYNC.pass?"ok":"bad","Passphrase", SYNC.pass?"present":"(blank)");
+    }catch(e){}
+    return;
+  }
+  row("ok","Configured", SYNC.repo+" \u00b7 "+(SYNC.path||"board.json"));
+
+  /* the board file */
+  var board=null;
+  try{
+    board=await gh("GET");
+    if(board===null)row("warn","No board file in the repo yet","The next sync will create it.");
+    else row("ok","Board file reachable","sha "+String(board.sha||"").slice(0,7));
+  }catch(e){
+    row("bad","Cannot reach the board file",e.message);
+    if(/401/.test(e.message))
+      row("warn","A 401 means the token was rejected",
+        "Fine-grained tokens expire. If this worked recently and nothing else changed, that is the usual cause.");
+    if(/403/.test(e.message))
+      row("warn","A 403 means the token lacks permission","It needs Contents: read and write on this repo.");
+    if(/404/.test(e.message))
+      row("warn","A 404 means the repo or path is wrong","Check for a rename, or a private repo the token cannot see.");
+    return;
+  }
+
+  /* can the passphrase actually open it */
+  if(board&&board.content){
+    try{
+      var txt=decodeURIComponent(escape(atob(String(board.content).replace(/\n/g,""))));
+      var d=await open_(txt);
+      row("ok","Passphrase opens the board",
+        (d&&d.tasks?d.tasks.length:"?")+" tasks in the remote copy");
+    }catch(e){
+      row("bad","The passphrase does not open the remote board",
+        "Decryption failed. A different passphrase on this device will fail every sync.");
+      return;
+    }
+  }
+
+  /* the capture inbox — the step that runs BEFORE the upload */
+  var box=null;
+  try{
+    box=await readInbox();
+    row("ok","Capture inbox readable",(box.items.length||0)+" item(s) waiting");
+  }catch(e){
+    row("warn","Capture inbox could not be read",e.message+" \u2014 sync still uploads.");
+  }
+  if(box&&box.items&&box.items.length){
+    var bad=[];
+    box.items.forEach(function(it){
+      try{
+        var r=parseLine(String(it&&it.text||""),"");
+        if(!r||typeof r.title!=="string")bad.push(String(it&&it.text||"").slice(0,40));
+      }catch(e){ bad.push(String(it&&it.text||"").slice(0,40)); }
+    });
+    if(bad.length)
+      row("bad","An inbox item fails to parse",
+        "pullInbox runs before the upload, so this aborts the whole sync: \u201c"+bad[0]+"\u201d");
+    else
+      row("ok","Every inbox item parses","None of them can abort the upload.");
+  }
+
+  /* local side */
+  try{
+    var st=lbxStorage();
+    row(st.pct>=85?"bad":st.pct>=70?"warn":"ok","Local storage "+st.pct+"% full",
+      lbxBytes(st.total)+" of about "+lbxBytes(LBX_QUOTA)+
+      (st.pct>=70?" \u2014 a failed save here looks like a sync problem.":""));
+  }catch(e){}
+  try{
+    row(SYNC.lastSync?"ok":"warn","Last successful sync",
+      SYNC.lastSync?new Date(SYNC.lastSync).toLocaleString():"never on this device");
+  }catch(e){}
+  row("ok","Read-only check complete","Nothing was written or committed.");
+}
+
 /* ---------- the settings dialog ---------- */
 function setOpen(){
   var S=lbxSettings();
@@ -4354,6 +4505,55 @@ function setOpen(){
     "How alike a swept line must be to something already on the board.",false));
   body.appendChild(sens);
 
+  /* ---- storage ---- */
+  body.appendChild(E("h4","lbxseth","Storage"));
+  var stBox=E("div","lbxsetstore");
+  function drawStore(){
+    stBox.textContent="";
+    var st=lbxStorage();
+    var bar=E("div","lbxstbar");
+    var fill=E("div","lbxstfill");
+    fill.style.width=Math.min(100,st.pct)+"%";
+    if(st.pct>=80)fill.classList.add("hot");
+    bar.appendChild(fill);
+    stBox.appendChild(bar);
+    stBox.appendChild(E("div","lbxstsum",
+      lbxBytes(st.total)+" of about "+lbxBytes(LBX_QUOTA)+" used ("+st.pct+"%)"+
+      (st.pct>=80?" \u2014 close to the cap. A save that fails here is easy to miss.":"")));
+    var LBL={};
+    LBL[KEY]="The board itself (tasks, events, notes, settings)";
+    LBL["launchboard-theme"]="Light or dark choice";
+    LBL["LBX.purge.undo"]="Purge undo snapshot \u2014 a full second copy of the board";
+    LBL["LBX.finder"]="Old chat index \u2014 no longer used";
+    LBL["LBX.pad"]="Legacy notes key \u2014 superseded";
+    LBL["LBX.sad.closed"]="Which event groups are collapsed";
+    LBL["LBX.tab"]="Last tab you were on";
+    LBL["LBX.lastsave"]="Last-saved clock";
+    st.rows.forEach(function(r){
+      var row=E("div","lbxstrow");
+      row.appendChild(E("code",null,r.k));
+      row.appendChild(E("span","lbxstwhat",LBL[r.k]||""));
+      row.appendChild(E("span","lbxstsize",lbxBytes(r.b)));
+      var droppable=(r.k==="LBX.purge.undo"||r.k==="LBX.finder"||r.k==="LBX.pad");
+      if(droppable&&r.b>0){
+        var x=E("button","mini","Clear");
+        x.type="button";
+        x.onclick=function(){
+          if(!confirm("Clear \u201c"+r.k+"\u201d?"+
+            (r.k==="LBX.purge.undo"?"\n\nYou will lose the ability to undo the last purge."
+             :"\n\nNothing currently uses it.")))return;
+          try{ localStorage.removeItem(r.k); }catch(e){}
+          try{ purgeUndoBtn(); }catch(e){}
+          drawStore();
+        };
+        row.appendChild(x);
+      }
+      stBox.appendChild(row);
+    });
+  }
+  drawStore();
+  body.appendChild(stBox);
+
   /* ---- sync ---- */
   body.appendChild(E("h4","lbxseth","Sync"));
   var sy=E("div","lbxsetsync");
@@ -4363,6 +4563,15 @@ function setOpen(){
         : "Not set up — this device only"; }
   catch(e){ sstat.textContent=""; }
   sy.appendChild(sstat);
+  var db=E("button",null,"Run diagnostics");
+  db.type="button";
+  var diagBox=E("div","lbxdiag");
+  db.onclick=function(){ db.disabled=true;
+    Promise.resolve(syncDiag(diagBox)).catch(function(e){
+      diagBox.textContent="Diagnostics failed: "+e.message;
+    }).then(function(){ db.disabled=false; });
+  };
+  sy.appendChild(db);
   var sb=E("button","pri","Sync setup\u2026");
   sb.type="button";
   sb.onclick=function(){
@@ -4373,6 +4582,7 @@ function setOpen(){
   };
   sy.appendChild(sb);
   body.appendChild(sy);
+  body.appendChild(diagBox);
 
   dlg.appendChild(body);
 
@@ -4696,6 +4906,173 @@ function lbxTestReport(P,F,out,saves){
 }
 
 /* ============================================================
+   Spoken capture
+
+   parseLine understands #work, !today, !! and !11/15 — punctuation
+   you type, not punctuation you can say. Dictation will never give
+   you "!tomorrow", and nobody says "exclamation point" at 70mph.
+
+   So this translates spoken phrasing into the tokens the existing
+   parser already handles, then hands off to it. Nothing downstream
+   changes, and every capture route benefits — Siri, email, the
+   batch paste box.
+
+   Deliberately conservative: a date word only counts when it is
+   anchored ("due Friday", "next Friday", "on Friday"), so a title
+   like "plan Friday's agenda" is left alone. Everything arriving
+   this way is flagged verify:true for review anyway.
+   ============================================================ */
+var SPOKEN_CATS={home:"home",house:"home",boat:"boat",work:"work",office:"work",
+  church:"church",travel:"travel",trip:"travel",expense:"travel",
+  personal:"personal",admin:"admin",intake:"intake"};
+var SPOKEN_DOW={sunday:"sun",monday:"mon",tuesday:"tue",wednesday:"wed",
+  thursday:"thu",friday:"fri",saturday:"sat"};
+var SPOKEN_MON={january:1,february:2,march:3,april:4,may:5,june:6,july:7,
+  august:8,september:9,october:10,november:11,december:12};
+
+function speechToSyntax(text){
+  var t=" "+String(text||"")+" ";
+
+  /* priority */
+  if(/\b(urgent|top priority|high priority|highest priority|really important|very important)\b/i.test(t)){
+    t=t.replace(/\b(urgent|top priority|high priority|highest priority|really important|very important)\b/ig," ");
+    t+=" !!";
+  }
+
+  /* category: only with an explicit marker, never a bare noun */
+  var cm=t.match(/\b(?:for|under|tag|tagged|hashtag|category)\s+(?:the\s+)?([a-z]+)\b/i);
+  if(cm&&SPOKEN_CATS[cm[1].toLowerCase()]){
+    t=t.replace(cm[0]," ");
+    t+=" #"+SPOKEN_CATS[cm[1].toLowerCase()];
+  }else{
+    var hm=t.match(/#\s*([a-z]+)\b/i);     /* dictation sometimes does produce # */
+    if(hm&&SPOKEN_CATS[hm[1].toLowerCase()]){
+      t=t.replace(hm[0]," ");
+      t+=" #"+SPOKEN_CATS[hm[1].toLowerCase()];
+    }
+  }
+
+  /* explicit calendar date: "November 15th", "on the 3rd of March" */
+  /* swallow the preposition too, or "on November 15th" leaves a dangling "on" */
+  var mm=t.match(/\b(?:on|by|due|for)?\s*(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i);
+  if(!mm){
+    var mm2=t.match(/\b(?:on|by|due|for)?\s*(\d{1,2})(?:st|nd|rd|th)?\s+of\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b/i);
+    if(mm2)mm=[mm2[0],mm2[2],mm2[1]];
+  }
+  if(mm){
+    t=t.replace(mm[0]," ");
+    t+=" !"+SPOKEN_MON[mm[1].toLowerCase()]+"/"+parseInt(mm[2],10);
+  }else if(/\btomorrow\b/i.test(t)){
+    t=t.replace(/\btomorrow\b/ig," ");t+=" !tomorrow";
+  }else if(/\btoday\b/i.test(t)){
+    t=t.replace(/\btoday\b/ig," ");t+=" !today";
+  }else{
+    /* a weekday only counts when anchored by a word that means "when" */
+    var dm=t.match(/\b(?:due|by|on|next|this coming|come)\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/i);
+    if(dm){
+      t=t.replace(dm[0]," ");
+      t+=" !"+SPOKEN_DOW[dm[1].toLowerCase()];
+    }else if(/\bnext week\b/i.test(t)){
+      t=t.replace(/\bnext week\b/ig," ");t+=" !mon";
+    }
+  }
+
+  /* tidy the leftovers dictation leaves behind */
+  t=t.replace(/\b(?:remind me to|remember to|i need to|note to self|add a task to|add a task|add)\b/ig," ");
+  t=t.replace(/\s*,\s*$/,"").replace(/\s+/g," ").trim();
+  /* a preposition left stranded where a phrase used to be */
+  t=t.replace(/\s+\b(?:on|by|due|for|at|in)\b(?=\s*(?:!|#|$))/ig," ");
+  t=t.replace(/\s+/g," ").trim();
+  return t;
+}
+
+/* ============================================================
+   Storage pressure
+
+   localStorage is roughly 5MB per origin, and save() fails by
+   toasting for two seconds — easy to miss, after which every edit
+   is silently lost until you reload and find yesterday's board.
+
+   Two things here make that more likely than it used to be: the
+   purge undo snapshot is a FULL copy of every task, and the chat
+   index is still sitting there orphaned now the finder is retired.
+   ============================================================ */
+var LBX_QUOTA=5*1024*1024;       /* the usual cap, in UTF-16 bytes */
+
+function lbxKeyBytes(k){
+  try{
+    var v=localStorage.getItem(k);
+    return v===null?0:(k.length+v.length)*2;
+  }catch(e){ return 0; }
+}
+function lbxStorage(){
+  var rows=[], total=0;
+  try{
+    Object.keys(localStorage).forEach(function(k){
+      var b=lbxKeyBytes(k);
+      total+=b;
+      rows.push({k:k,b:b});
+    });
+  }catch(e){}
+  rows.sort(function(a,b){return b.b-a.b});
+  return {rows:rows,total:total,pct:Math.round(total/LBX_QUOTA*100)};
+}
+function lbxBytes(n){
+  if(n<1024)return n+" B";
+  if(n<1024*1024)return (n/1024).toFixed(1)+" KB";
+  return (n/1024/1024).toFixed(2)+" MB";
+}
+
+/* A failed save is the one error that must not scroll past. */
+var LBX_SAVEWARN=null;
+function lbxSaveWarn(msg){
+  if(LBX_SAVEWARN&&LBX_SAVEWARN.parentNode)LBX_SAVEWARN.parentNode.removeChild(LBX_SAVEWARN);
+  var w=E("div","lbxsavewarn");
+  w.appendChild(E("strong",null,"Your last change was not saved."));
+  w.appendChild(E("span",null," "+msg));
+  var b=E("button",null,"Export a backup now");
+  b.type="button";
+  b.onclick=function(){ var x=D("bExp"); if(x)x.click(); };
+  w.appendChild(b);
+  var c=E("button",null,"Dismiss");
+  c.type="button";
+  c.onclick=function(){ if(w.parentNode)w.parentNode.removeChild(w); LBX_SAVEWARN=null; };
+  w.appendChild(c);
+  document.body.appendChild(w);
+  LBX_SAVEWARN=w;
+}
+
+/* Verify the write actually landed, but not on every keystroke — parsing the
+   whole board back is too costly for that. */
+var LBX_LASTVERIFY=0, LBX_LASTCOUNT=-1;
+function lbxVerifySave(){
+  var n=Date.now(), count=(typeof TASKS!=="undefined")?TASKS.length:-1;
+  /* Throttling by time alone would let the FIRST failure after adding or
+     removing a task go unreported for ten seconds — exactly the moment you
+     need to know. Any change in the task count verifies immediately; only
+     text edits fall back to the timer. */
+  var countChanged=(count!==LBX_LASTCOUNT);
+  if(!countChanged&&n-LBX_LASTVERIFY<10000)return;
+  LBX_LASTVERIFY=n; LBX_LASTCOUNT=count;
+  try{
+    var raw=localStorage.getItem(KEY);
+    if(raw===null){ lbxSaveWarn("Storage returned nothing back."); return; }
+    var d=JSON.parse(raw);
+    if(!d||!Array.isArray(d.tasks))
+      { lbxSaveWarn("What came back out of storage is not a board."); return; }
+    if(d.tasks.length!==TASKS.length){
+      var st=lbxStorage();
+      lbxSaveWarn("Storage holds "+d.tasks.length+" tasks but the board has "+TASKS.length+
+        ". Storage is "+st.pct+"% full ("+lbxBytes(st.total)+"). Settings \u203A Storage shows what is using it.");
+      return;
+    }
+    if(LBX_SAVEWARN&&LBX_SAVEWARN.parentNode){
+      LBX_SAVEWARN.parentNode.removeChild(LBX_SAVEWARN);LBX_SAVEWARN=null;
+    }
+  }catch(e){ lbxSaveWarn("Storage could not be read back: "+e.message); }
+}
+
+/* ============================================================
    Release stamp + last-saved clock
 
    BUMP THESE TWO TOGETHER ON EVERY DELIVERY. The version number
@@ -4705,7 +5082,7 @@ function lbxTestReport(P,F,out,saves){
    and changing it would point the app at an empty key and orphan
    the saved board. That is why the footer said August.
    ============================================================ */
-var LBX_RELEASED="2026-10-28T23:40:00";
+var LBX_RELEASED="2026-10-29T02:00:00";
 var K_SAVED="LBX.lastsave";
 
 function stampWhen(iso,withTime){
@@ -5125,9 +5502,30 @@ function boot(){
     window.save=function(){
       var r=_save.apply(this,arguments);
       try{ s(K_SAVED,new Date().toISOString()); }catch(e){}
-      try{ Promise.resolve(r).then(function(){ try{stampFooter()}catch(e){} },
+      try{ Promise.resolve(r).then(function(){ try{stampFooter();lbxVerifySave()}catch(e){} },
                                    function(){ try{stampFooter()}catch(e){} }); }catch(e){}
       return r;
+    };
+  }
+
+  /* Spoken phrasing is translated before the core parser sees it, so the
+     syntax it already understands stays the single source of truth. */
+  if(typeof window.parseLine==="function"){
+    var _parseLine=window.parseLine;
+    window.parseLine=function(line,defCat){
+      /* pullInbox() calls this on every captured item, unguarded, and sits
+         inside doSync BEFORE the upload. A throw here does not just skip one
+         line — it aborts the whole sync before the PUT, so nothing uploads at
+         all. Never throw; fall back to the raw text instead. */
+      try{
+        var t=line;
+        try{ t=speechToSyntax(line); }catch(e){ t=line; }
+        return _parseLine.call(this,t,defCat);
+      }catch(e){
+        try{ console.warn("parseLine fell back for:",line,e); }catch(_){}
+        return {title:String(line||"").replace(/\s+/g," ").trim().slice(0,220),
+                cat:defCat||"",due:"",pin:""};
+      }
     };
   }
 
@@ -5175,6 +5573,11 @@ function boot(){
   }
 
   if(FINDER)restore();
+  else{
+    /* the finder is retired, so its cached rows are dead weight in a store
+       that has a hard cap */
+    try{ if(g(K_CSV)){ rm(K_CSV); } }catch(e){}
+  }
   var last=g(K_TAB);
   show(TABS.indexOf(last)!==-1?last:"tasks");
 
@@ -5197,7 +5600,7 @@ function boot(){
 }
 
 LBX.show=show;LBX.loadCsv=loadCsv;LBX.build=build;LBX.safeUrl=safeUrl;
-LBX.items=function(){return ITEMS};LBX.meta=function(){return (typeof META!=='undefined')?META:null};LBX.merge=lbxMerge;LBX.pull=function(){return lbxPull(true)};LBX.settings=lbxSettings;LBX.padParse=padParse;LBX.evSorted=evSorted;LBX.evIsPast=evIsPast;LBX.evAddTask=evAddTask;LBX.evInherit=evInheritChildren;LBX.fieldOn=fieldOn;LBX.tests=lbxTests;LBX.setOpen=setOpen;LBX.ctxOpen=ctxOpen;LBX.simScore=simScore;LBX.simScan=simScan;LBX.simClash=simClash;LBX.simDF=simDF;LBX.sensOf=sensOf;LBX.SENS=SENS;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
+LBX.items=function(){return ITEMS};LBX.meta=function(){return (typeof META!=='undefined')?META:null};LBX.merge=lbxMerge;LBX.pull=function(){return lbxPull(true)};LBX.settings=lbxSettings;LBX.padParse=padParse;LBX.evSorted=evSorted;LBX.evIsPast=evIsPast;LBX.evAddTask=evAddTask;LBX.evInherit=evInheritChildren;LBX.fieldOn=fieldOn;LBX.tests=lbxTests;LBX.speech=speechToSyntax;LBX.storage=lbxStorage;LBX.syncDiag=syncDiag;LBX.purgeSnapshot=purgeSnapshot;LBX.resetVerify=function(){LBX_LASTVERIFY=0;LBX_LASTCOUNT=-1};LBX.setOpen=setOpen;LBX.ctxOpen=ctxOpen;LBX.simScore=simScore;LBX.simScan=simScan;LBX.simClash=simClash;LBX.simDF=simDF;LBX.sensOf=sensOf;LBX.SENS=SENS;LBX.released=LBX_RELEASED;LBX.purgeScan=purgeScan;LBX.purgeOpen=purgeOpen;LBX.purgeUndo=purgeUndo;LBX.stampFooter=stampFooter;LBX.padText=function(){return padToText()};
 LBX.events=function(){return evAll()};
 LBX.dkey=dkey;LBX.parseDelim=parseDelim;LBX.refreshFrogs=function(){if(frogs)drawFrogs()};
 
