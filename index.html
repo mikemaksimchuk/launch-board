@@ -335,8 +335,8 @@ footer{border-top:1px solid var(--lightTeal);margin-top:34px;padding-top:14px;di
 </div></dialog>
 <input type="file" id="file" accept=".json,.csv,text/csv" style="display:none">
 <dialog id="dSync"><div class="dlg"><h3>Sync setup</h3>
- <div class="sub">Your board is encrypted on this device before it leaves. GitHub only ever stores an unreadable blob.
- The token and passphrase are saved on this device only &mdash; they are never sent anywhere except GitHub.</div>
+ <div class="sub">Your board is encrypted on this device before it leaves. The capture inbox and phone widget contain plaintext task content, so the data repository must be private.
+ The token and passphrase are stored in this browser. Only the token is sent to GitHub; the passphrase is not sent.</div>
  <div class="grid2">
   <label class="full"><span class="lbl">Repository (owner/name)</span>
    <input type="text" id="sRepo" placeholder="yourname/launch-board-data"></label>
@@ -433,7 +433,7 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
-const VERSION="v25";
+const VERSION="v26";
 let LOADFAIL=false;
 // BUILD doubles as the localStorage key. Bumping it makes the board look for data
 // that isn't there and fall into the legacy-recovery path, so the visible version
@@ -1541,10 +1541,15 @@ function widgetPayload(){
    overdue:live.filter(t=>t.due&&days(pd(t.due),TODAY)<0).length}}}
 
 async function pushWidget(){
- let body;
- try{body=JSON.stringify(widgetPayload(),null,1)}catch(e){return}
- let h=0;for(let i=0;i<body.length;i++)h=((h*33)^body.charCodeAt(i))>>>0;
- const sig=h.toString(36)+":"+body.length;
+ let body,stable;
+ try{
+  const payload=widgetPayload();
+  body=JSON.stringify(payload,null,1);
+  // A generated timestamp is not a content change.
+  stable=JSON.stringify({...payload,at:undefined});
+ }catch(e){return}
+ let h=0;for(let i=0;i<stable.length;i++)h=((h*33)^stable.charCodeAt(i))>>>0;
+ const sig=h.toString(36)+":"+stable.length;
  if(META.widgetSig===sig)return;                 // nothing changed since last sync
  try{
   const cur=await gh("GET",null,null,WIDGET_PATH);
@@ -1553,40 +1558,79 @@ async function pushWidget(){
  }catch(e){console.warn("widget push failed:",e)}}
 async function readInbox(){
  const r=await gh("GET",null,null,INBOX_PATH);
- if(!r)return{items:[],sha:null};
- let d={};
- try{d=JSON.parse(decodeURIComponent(escape(atob(r.content.replace(/\n/g,"")))))}catch(e){}
- return{items:Array.isArray(d.items)?d.items:[],sha:r.sha}}
+ if(!r)return{items:[],sha:null,data:{v:1,items:[]}};
+ let d;
+ try{d=JSON.parse(decodeURIComponent(escape(atob(r.content.replace(/\n/g,"")))))}
+ catch(e){throw new Error("Capture inbox is not valid JSON; it was not changed")}
+ if(!d||typeof d!=="object"||Array.isArray(d)||!Array.isArray(d.items)||(d.v!==undefined&&d.v!==1))
+  throw new Error("Capture inbox has an unsupported schema; it was not changed");
+ return{items:d.items,sha:r.sha,data:d}}
 
+// Capture IDs are opaque source identities, not a count of remaining tasks.
+// Keep the ledger after task deletion: a retry must not resurrect old reminders.
+function captureKey(id){
+ if(typeof id!=="string"&&!(typeof id==="number"&&Number.isFinite(id)))return "";
+ const k=String(id);return k.trim()&&k.length<=1024?k:"";
+}
+async function captureTaskId(key){
+ const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(JSON.stringify(["launch-capture-v1",key])));
+ return "V-C-"+Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+}
+function captureDue(it,fallback){
+ const d=it.dueDate||it.due;
+ if(typeof d!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(d))return fallback;
+ const parsed=new Date(d+"T12:00:00Z");
+ return Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===d?d:fallback;
+}
 async function pullInbox(){
  if(!Array.isArray(META.captured))META.captured=[];
- const seen=new Set(META.captured);
+ const seen=new Set(META.captured.map(captureKey).filter(Boolean));
+ TASKS.forEach(t=>{const k=captureKey(t.captureId);if(k)seen.add(k)});
+ const byId=new Map(TASKS.map(t=>[t.id,t]));
  let box;
  try{box=await readInbox()}catch(e){console.warn("inbox read failed:",e);return{n:0,ids:[]}}
- const fresh=box.items.filter(it=>it&&it.id&&it.text&&!seen.has(it.id));
- if(!fresh.length)return{n:0,ids:[]};
- let n=TASKS.filter(x=>String(x.id).startsWith("V-")).length,added=0;
- fresh.forEach(it=>{
-  const p=parseLine(it.text,"");
-  META.captured.push(it.id);
-  if(!p.title)return;
-  n++;added++;
-  TASKS.push({id:"V-"+String(n).padStart(3,"0"),title:p.title,cat:p.cat,proj:"Inbox",
-   folder:"",parent:"",deps:"",pin:p.pin,status:"Open",start:"",due:p.due,done:"",assignee:"",people:"",
-   created:nowISO(),src:"Captured via "+(it.via||"email"),raw:String(it.text),xref:"",verify:true,
-   notes:"Captured "+fmtWhen(it.at||nowISO())+" — check the details.",
-   tier:"",effort:"",touched:nowISO(),rawStatus:""})});
- if(META.captured.length>400)META.captured=META.captured.slice(-400);
- return{n:added,ids:fresh.map(it=>it.id)}}
+ const ids=new Set();let added=0;
+ for(const it of box.items){
+  if(!it||typeof it!=="object")continue;
+  const key=captureKey(it.id);
+  if(!key)continue;
+  // Acknowledged rows must be retried for draining after an earlier failed PUT.
+  if(seen.has(key)){ids.add(key);continue}
+  if(typeof it.text!=="string"||!it.text.trim()||it.text.length>10000)continue;
+  const taskId=await captureTaskId(key);
+  const existing=byId.get(taskId);
+  if(existing){
+   // Deterministic IDs also survive CSV round trips that omit captureId.
+   seen.add(key);ids.add(key);continue;
+  }
+  // Reminders already have structured fields. Their titles are literal text,
+  // not commands in the legacy email/pasted-text capture grammar.
+  const reminder=it.via==="reminders";
+  if(reminder&&it.text.trim().length>220)continue;
+  const p=reminder?{title:it.text.trim(),cat:"Unreviewed Intake",pin:"",due:""}:parseLine(it.text,"");
+  if(!p||typeof p.title!=="string"||!p.title.trim())continue;
+  const at=typeof it.at==="string"&&Number.isFinite(Date.parse(it.at))?it.at:nowISO();
+  const via=typeof it.via==="string"?it.via.slice(0,80):"email";
+  const task={id:taskId,captureId:key,title:p.title,cat:p.cat,proj:"Inbox",
+   folder:"",parent:"",deps:"",pin:p.pin,status:"Open",start:"",due:captureDue(it,p.due),done:"",assignee:"",people:"",
+   created:nowISO(),src:"Captured via "+via,raw:it.text,xref:"",verify:true,
+   notes:"Captured "+fmtWhen(at)+" — check the details.",
+   tier:"",effort:"",touched:nowISO(),rawStatus:""};
+  TASKS.push(task);byId.set(taskId,task);added++;
+  seen.add(key);ids.add(key);
+ }
+ META.captured=Array.from(seen);
+ return{n:added,ids:Array.from(ids)};
+}
 
 async function clearInbox(ids){
- const drop=new Set(ids);
+ const drop=new Set(ids.map(captureKey));
  for(let a=0;a<2;a++){
   try{
    const box=await readInbox();
-   const keep=box.items.filter(it=>!drop.has(it.id));
+   const keep=box.items.filter(it=>!it||!drop.has(captureKey(it.id)));
    if(keep.length===box.items.length)return;
-   await gh("PUT",JSON.stringify({v:1,items:keep},null,1),box.sha,INBOX_PATH,"inbox drained");
+   await gh("PUT",JSON.stringify({...box.data,items:keep},null,1),box.sha,INBOX_PATH,"inbox drained");
    return
   }catch(e){if(a)return}}}
 
@@ -1635,7 +1679,7 @@ async function doSync(quiet){
    if(remote.links&&((!LINKGROUPS.length&&remote.links.length)||(rt&&(!lt||rt>lt)))){
     LINKGROUPS=remote.links;META.linksTouched=rt||nowISO();linkMigrate()}
    if(remote.meta&&Array.isArray(remote.meta.captured))
-    META.captured=[...new Set(remote.meta.captured.concat(META.captured||[]))].slice(-400)
+    META.captured=[...new Set(remote.meta.captured.concat(META.captured||[]).map(captureKey).filter(Boolean))]
    // Everything else under meta (events, cluster-files) merges in the patch.
    // Without this the inbound meta is dropped and the next PUT overwrites the
    // other device's records with this device's empty ones.
@@ -3919,6 +3963,24 @@ function lbxPull(force){
   return true;
 }
 
+// Fast, read-only inbox checks do not commit the entire board each time.
+// Browser timers run only while the page is active; this is not background sync.
+var LBX_INBOX_POLL_MS=15000, LBX_INBOX_CHECKING=false;
+async function lbxPollInbox(){
+  if(document.visibilityState!=="visible"||!lbxCanSync()||
+     LBX_INBOX_CHECKING||(typeof syncing!=="undefined"&&syncing))return;
+  LBX_INBOX_CHECKING=true;
+  try{
+    var box=await readInbox();
+    var seen=new Set(((typeof META!=="undefined"&&Array.isArray(META.captured))?META.captured:[]).map(captureKey));
+    if(box.items.some(function(it){return it&&captureKey(it.id)&&typeof it.text==="string"&&it.text.length<=10000&&it.text.trim()&&!seen.has(captureKey(it.id))}))
+      lbxPull(true);
+  }catch(e){
+    // The existing Sync status and read-only diagnostics remain authoritative.
+    // A failed probe never writes or clears the inbox.
+  }finally{ LBX_INBOX_CHECKING=false; }
+}
+
 function lbxAutoWire(){
   document.addEventListener("visibilitychange",function(){
     if(document.visibilityState==="visible")lbxPull(false);
@@ -3928,6 +3990,7 @@ function lbxAutoWire(){
   setInterval(function(){
     if(document.visibilityState==="visible")lbxPull(false);
   },LBX_POLL_MS);
+  setInterval(lbxPollInbox,LBX_INBOX_POLL_MS);
 }
 
 /* ============================================================
@@ -5141,7 +5204,7 @@ function lbxVerifySave(){
    and changing it would point the app at an empty key and orphan
    the saved board. That is why the footer said August.
    ============================================================ */
-var LBX_RELEASED="2026-10-29T22:40:00";
+var LBX_RELEASED="2026-11-11T12:00:00Z";
 var K_SAVED="LBX.lastsave";
 
 function stampWhen(iso,withTime){
