@@ -433,7 +433,7 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
-const VERSION="v27";
+const VERSION="v28";
 let LOADFAIL=false;
 // BUILD doubles as the localStorage key. Bumping it makes the board look for data
 // that isn't there and fall into the legacy-recovery path, so the visible version
@@ -5348,7 +5348,7 @@ function boot(){
   tabs.setAttribute("role","tablist");
   tabs.setAttribute("aria-label","Launch Pad sections");
   var LABELS={tasks:"Tasks",links:"Launch Pad",finder:"Chat Finder",
-               pad:"Maksim-um Cluster-Files",sad:"Stand And Deliver",admin:"Chore-d for Overlord"};
+               pad:"Maksim-um Cluster-Files",sad:"Stand And Deliver",admin:"Chores for the Overlords"};
   TABS.forEach(function(t){
     var b=E("button","lbxtab");
     b.id="lbxtab-"+t;b.type="button";b.setAttribute("role","tab");
@@ -5736,6 +5736,6 @@ else boot();
 })();
 </script>
 
-<script src="admin-core.js?v=27"></script>
-<script src="admin-tab.js?v=27"></script>
+<script src="admin-core.js?v=28"></script>
+<script src="admin-tab.js?v=28"></script>
 </body></html>
