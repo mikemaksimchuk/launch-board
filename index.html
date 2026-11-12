@@ -433,7 +433,7 @@ const EFFORT={"":0,"Low":.5,"Medium":1.5,"High":4,"XS":.25,"S":.5,"M":1,"L":2,"X
 const TIERW={"Primary":15,"Secondary":10,"Episodic":7,"":6,"Not Finalized":3};
 function midnight(){const d=new Date();d.setHours(0,0,0,0);return d}
 let TODAY=midnight();   // recomputed each render — was hardcoded, so every date drifted
-const VERSION="v26";
+const VERSION="v27";
 let LOADFAIL=false;
 // BUILD doubles as the localStorage key. Bumping it makes the board look for data
 // that isn't there and fall into the legacy-recovery path, so the visible version
@@ -4811,7 +4811,7 @@ function lbxTests(){
     ok("VERSION is set", typeof VERSION==="string"&&VERSION.length>1, VERSION);
     ok("BUILD is the storage key and is unchanged", BUILD==="2026.08.26-1", BUILD);
     ok("KEY derives from BUILD", KEY==="launchboard-"+BUILD);
-    ok("four tabs", document.querySelectorAll(".lbxtab").length===4);
+    ok("five tabs", document.querySelectorAll(".lbxtab").length===5);
     ok("toolbar holds the action buttons", !!document.querySelector(".lbxbar #lbxgear"));
     ok("core dialogs intact", document.querySelectorAll("dialog").length>=7);
     ok("task rows carry their id", (function(){
@@ -5204,7 +5204,7 @@ function lbxVerifySave(){
    and changing it would point the app at an empty key and orphan
    the saved board. That is why the footer said August.
    ============================================================ */
-var LBX_RELEASED="2026-11-11T12:00:00Z";
+var LBX_RELEASED="2026-11-12T12:00:00Z";
 var K_SAVED="LBX.lastsave";
 
 function stampWhen(iso,withTime){
@@ -5244,7 +5244,7 @@ function stampFooter(){
    so turning it back on is a one-word change. Its cached rows stay in
    LBX.finder, harmless and ignored. */
 var FINDER=false;
-var TABS=FINDER?["tasks","links","finder","pad","sad"]:["tasks","links","pad","sad"];
+var TABS=FINDER?["tasks","links","finder","pad","sad","admin"]:["tasks","links","pad","sad","admin"];
 function show(name){
   TABS.forEach(function(t){
     var tab=D("lbxtab-"+t),p=D("lbxpanel-"+t);
@@ -5265,6 +5265,7 @@ function show(name){
   }
   if(name==="pad"){drawFrogs();drawPadSafe();padStats()}
   if(name==="sad"){drawSAD()}
+  if(name==="admin"&&window.LBAdmin)window.LBAdmin.sync();
   if(FINDER&&name==="finder"&&loaded&&!loaded.hidden)q.focus();
 }
 
@@ -5347,7 +5348,7 @@ function boot(){
   tabs.setAttribute("role","tablist");
   tabs.setAttribute("aria-label","Launch Pad sections");
   var LABELS={tasks:"Tasks",links:"Launch Pad",finder:"Chat Finder",
-               pad:"Maksim-um Cluster-Files",sad:"Stand And Deliver"};
+               pad:"Maksim-um Cluster-Files",sad:"Stand And Deliver",admin:"Chore-d for Overlord"};
   TABS.forEach(function(t){
     var b=E("button","lbxtab");
     b.id="lbxtab-"+t;b.type="button";b.setAttribute("role","tab");
@@ -5400,6 +5401,9 @@ function boot(){
 
   var pT=panel("tasks"),pL=panel("links"),pP=panel("pad"),pS=panel("sad");
   var pF=FINDER?panel("finder"):E("div");
+  var pA=panel("admin");
+  if(window.LBAdmin&&window.LBAdmin.mount){try{window.LBAdmin.mount(pA)}catch(e){pA.textContent="MV Admin tasks could not load safely: "+e.message;}}
+  else pA.textContent="MV Admin tasks could not load. Refresh this page to retry.";
   [strip,bar,list,hDone,doneSub,done].forEach(function(n){if(n)pT.appendChild(n)});
   [hLinks,lSub,lTools,links].forEach(function(n){if(n)pL.appendChild(n)});
 
@@ -5732,4 +5736,6 @@ else boot();
 })();
 </script>
 
+<script src="admin-core.js?v=27"></script>
+<script src="admin-tab.js?v=27"></script>
 </body></html>
